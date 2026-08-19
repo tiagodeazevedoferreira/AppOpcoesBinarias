@@ -14,6 +14,7 @@ from app_opcoes_binarias.research.model_evaluation import (
     evaluate_nearest_centroid,
     evaluate_softmax,
 )
+from app_opcoes_binarias.research.walk_forward import evaluate_walk_forward
 
 
 def main() -> int:
@@ -21,6 +22,7 @@ def main() -> int:
     parser.add_argument("--symbol", default=settings.market_symbol)
     parser.add_argument("--horizon", type=int, default=60)
     parser.add_argument("--train-ratio", type=float, default=0.7)
+    parser.add_argument("--walk-forward-folds", type=int, default=5)
     parser.add_argument("--output", default="artifacts/model_report.json")
     args = parser.parse_args()
 
@@ -39,6 +41,7 @@ def main() -> int:
     non_overlap_baseline = evaluate_baselines(non_overlap_train, non_overlap_test)
     non_overlap_nearest = evaluate_nearest_centroid(non_overlap_train, non_overlap_test) if non_overlap_test else None
     non_overlap_softmax = evaluate_softmax(non_overlap_train, non_overlap_test) if non_overlap_test else None
+    walk_forward = evaluate_walk_forward(rows, folds=args.walk_forward_folds)
 
     payload = {
         "symbol": args.symbol,
@@ -59,6 +62,7 @@ def main() -> int:
             "nearest_centroid": asdict(non_overlap_nearest) if non_overlap_nearest else None,
             "softmax": asdict(non_overlap_softmax) if non_overlap_softmax else None,
         },
+        "walk_forward": asdict(walk_forward),
     }
 
     output = Path(args.output)
