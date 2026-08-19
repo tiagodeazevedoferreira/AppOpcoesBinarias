@@ -22,10 +22,10 @@ class ResearchRow:
     return_1: float | None
     momentum_2: float | None
     volatility_5: float | None
-    ema_distance_10: float | None
-    directional_consistency_5: float | None
     label: str | None
     actual_horizon_seconds: float | None
+    ema_distance_10: float | None = None
+    directional_consistency_5: float | None = None
 
 
 def build_dataset(ticks: list[dict[str, Any]], horizon_seconds: int = 60) -> list[ResearchRow]:
