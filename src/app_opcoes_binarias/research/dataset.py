@@ -29,17 +29,37 @@ class ResearchRow:
         momentum_2: float | None,
         volatility_5: float | None,
         *args: Any,
+        **kwargs: Any,
     ) -> None:
-        if len(args) == 2:
-            label, actual_horizon_seconds = args
-            ema_distance_10 = None
-            directional_consistency_5 = None
+        fields = (
+            "label",
+            "actual_horizon_seconds",
+            "ema_distance_10",
+            "directional_consistency_5",
+        )
+        if kwargs:
+            if args or set(kwargs) - set(fields):
+                raise TypeError("ResearchRow accepts either positional or named optional fields")
+            values = {field: kwargs.get(field) for field in fields}
+        elif len(args) == 2:
+            values = dict(zip(fields[:2], args))
+            values.update(ema_distance_10=None, directional_consistency_5=None)
         elif len(args) == 4:
             first, second, third, fourth = args
             if isinstance(third, str) or third is None:
-                ema_distance_10, directional_consistency_5, label, actual_horizon_seconds = args
+                values = dict(
+                    ema_distance_10=first,
+                    directional_consistency_5=second,
+                    label=third,
+                    actual_horizon_seconds=fourth,
+                )
             else:
-                label, actual_horizon_seconds, ema_distance_10, directional_consistency_5 = args
+                values = dict(
+                    label=first,
+                    actual_horizon_seconds=second,
+                    ema_distance_10=third,
+                    directional_consistency_5=fourth,
+                )
         else:
             raise TypeError("ResearchRow expects 7 or 9 positional arguments")
         object.__setattr__(self, "epoch", epoch)
@@ -47,10 +67,8 @@ class ResearchRow:
         object.__setattr__(self, "return_1", return_1)
         object.__setattr__(self, "momentum_2", momentum_2)
         object.__setattr__(self, "volatility_5", volatility_5)
-        object.__setattr__(self, "label", label)
-        object.__setattr__(self, "actual_horizon_seconds", actual_horizon_seconds)
-        object.__setattr__(self, "ema_distance_10", ema_distance_10)
-        object.__setattr__(self, "directional_consistency_5", directional_consistency_5)
+        for field in fields:
+            object.__setattr__(self, field, values[field])
 
 
 def build_dataset(ticks: list[dict[str, Any]], horizon_seconds: int = 60) -> list[ResearchRow]:
