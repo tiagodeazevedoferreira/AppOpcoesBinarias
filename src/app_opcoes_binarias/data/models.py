@@ -1,15 +1,32 @@
-from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
-@dataclass(frozen=True, slots=True)
-class MarketTick:
-    """Canonical market tick used by the application, independent of broker format."""
+class MarketTick(BaseModel):
+    """Canonical market tick used throughout the application."""
 
-    symbol: str
-    epoch: int
-    quote: float
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str = Field(min_length=2, max_length=30)
+    epoch: int = Field(ge=0)
+    quote: Decimal
 
     @property
     def timestamp(self) -> datetime:
         return datetime.fromtimestamp(self.epoch, tz=timezone.utc)
+
+    @classmethod
+    def from_deriv(cls, payload: dict) -> "MarketTick":
+        tick = payload.get("tick")
+        if not isinstance(tick, dict):
+            raise ValueError("Deriv tick payload is missing 'tick'")
+        symbol = tick.get("symbol") or tick.get("underlying_symbol")
+        if not isinstance(symbol, str):
+            raise ValueError("Deriv tick payload is missing a valid symbol")
+        epoch = tick.get("epoch")
+        quote = tick.get("quote")
+        if not isinstance(epoch, (int, float)) or not isinstance(quote, (int, float, str)):
+            raise ValueError("Deriv tick payload contains invalid epoch or quote")
+        return cls(symbol=symbol, epoch=int(epoch), quote=Decimal(str(quote)))
