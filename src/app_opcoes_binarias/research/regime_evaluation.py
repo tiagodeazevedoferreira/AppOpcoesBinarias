@@ -58,10 +58,9 @@ def evaluate_regime_persistence(
         trend_rows += 1
         prediction = "RISE" if regime.return_ratio > 0 else "FALL"
         decisions += 1
-        if row.label is not None:
-            if prediction == row.label:
-                correct += 1
-                trend_correct += 1
+        if row.label is not None and prediction == row.label:
+            correct += 1
+            trend_correct += 1
 
     usable_test = sum(1 for row in test if row.label is not None)
     return RegimeDecisionReport(
