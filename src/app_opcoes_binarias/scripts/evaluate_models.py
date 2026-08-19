@@ -16,6 +16,7 @@ from app_opcoes_binarias.research.model_evaluation import (
     evaluate_nearest_centroid,
     evaluate_softmax,
 )
+from app_opcoes_binarias.research.stability import evaluate_walk_forward_stability
 from app_opcoes_binarias.research.walk_forward import evaluate_walk_forward
 
 
@@ -68,6 +69,7 @@ def main() -> int:
         else None
     )
     walk_forward = evaluate_walk_forward(rows, folds=args.walk_forward_folds)
+    stability = evaluate_walk_forward_stability(walk_forward)
 
     payload = {
         "symbol": args.symbol,
@@ -97,6 +99,7 @@ def main() -> int:
             "confidence": asdict(non_overlap_confidence) if non_overlap_confidence else None,
         },
         "walk_forward": asdict(walk_forward),
+        "walk_forward_stability": asdict(stability),
     }
 
     output = Path(args.output)
