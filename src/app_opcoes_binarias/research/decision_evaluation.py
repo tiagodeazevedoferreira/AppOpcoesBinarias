@@ -51,7 +51,6 @@ def evaluate_softmax_decisions(
             truth.append(row.label)
             predictions.append(decision.direction)
 
-    total_evaluated = directional + sum(reasons.values()) - reasons.get("thresholds_satisfied", 0)
     usable = len(test) - skipped
     no_bet = usable - directional
     return DecisionReport(
