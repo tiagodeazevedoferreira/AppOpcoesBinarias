@@ -5,7 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .features import momentum, returns, rolling_volatility
+from .features import (
+    directional_consistency,
+    ema_distance,
+    momentum,
+    returns,
+    rolling_volatility,
+)
 from .labeling import PricePoint, build_outcome
 
 
@@ -16,6 +22,8 @@ class ResearchRow:
     return_1: float | None
     momentum_2: float | None
     volatility_5: float | None
+    ema_distance_10: float | None
+    directional_consistency_5: float | None
     label: str | None
     actual_horizon_seconds: float | None
 
@@ -45,6 +53,8 @@ def build_dataset(ticks: list[dict[str, Any]], horizon_seconds: int = 60) -> lis
                 return_1=returns(past)[-1] if len(past) >= 2 else None,
                 momentum_2=momentum(past, 2),
                 volatility_5=rolling_volatility(past, 5),
+                ema_distance_10=ema_distance(past, 10),
+                directional_consistency_5=directional_consistency(past, 5),
                 label=outcome.direction,
                 actual_horizon_seconds=actual_horizon,
             )
