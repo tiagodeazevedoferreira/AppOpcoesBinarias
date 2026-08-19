@@ -7,9 +7,8 @@ fall, or remain unchanged relative to the observation price?
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Sequence
 
 
 @dataclass(frozen=True)
