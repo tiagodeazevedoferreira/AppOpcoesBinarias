@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -15,18 +15,18 @@ class MarketTick(BaseModel):
 
     @property
     def timestamp(self) -> datetime:
-        return datetime.fromtimestamp(self.epoch, tz=timezone.utc)
+        return datetime.fromtimestamp(self.epoch, tz=UTC)
 
     @classmethod
     def from_deriv(cls, payload: dict) -> "MarketTick":
         tick = payload.get("tick")
         if not isinstance(tick, dict):
-            raise ValueError("Deriv tick payload is missing 'tick'")
+            raise TypeError("Deriv tick payload is missing 'tick'")
         symbol = tick.get("symbol") or tick.get("underlying_symbol")
         if not isinstance(symbol, str):
-            raise ValueError("Deriv tick payload is missing a valid symbol")
+            raise TypeError("Deriv tick payload is missing a valid symbol")
         epoch = tick.get("epoch")
         quote = tick.get("quote")
         if not isinstance(epoch, (int, float)) or not isinstance(quote, (int, float, str)):
-            raise ValueError("Deriv tick payload contains invalid epoch or quote")
+            raise TypeError("Deriv tick payload contains invalid epoch or quote")
         return cls(symbol=symbol, epoch=int(epoch), quote=Decimal(str(quote)))
