@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 import math
+from collections.abc import Sequence
 
 
 def returns(prices: Sequence[float], lag: int = 1) -> list[float]:
