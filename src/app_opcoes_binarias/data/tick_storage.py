@@ -14,12 +14,18 @@ class TickStorage:
         self.root = root.strip("/")
 
     def write_batch(self, symbol: str, ticks: Iterable[dict[str, Any]]) -> int:
-        count = 0
-        for tick in ticks:
+        """Persist a batch atomically by epoch, making repeated runs idempotent."""
+        records = list(ticks)
+        if not records:
+            return 0
+
+        updates = {}
+        for tick in records:
             epoch = int(tick["epoch"])
-            self.store.write(f"{self.root}/{symbol}/{epoch}", tick)
-            count += 1
-        return count
+            updates[str(epoch)] = tick
+
+        self.store.update(f"{self.root}/{symbol}", updates)
+        return len(updates)
 
     def read_all(self, symbol: str) -> list[dict[str, Any]]:
         """Read all persisted ticks for a symbol in chronological order."""
