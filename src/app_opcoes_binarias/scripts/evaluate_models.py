@@ -9,6 +9,7 @@ from app_opcoes_binarias.config.settings import settings
 from app_opcoes_binarias.data.firebase_store import FirebaseStore
 from app_opcoes_binarias.data.tick_storage import TickStorage
 from app_opcoes_binarias.research.dataset import build_dataset, temporal_split
+from app_opcoes_binarias.research.decision_evaluation import evaluate_softmax_decisions
 from app_opcoes_binarias.research.evaluation import evaluate_baselines, sample_non_overlapping
 from app_opcoes_binarias.research.model_evaluation import (
     evaluate_nearest_centroid,
@@ -23,6 +24,8 @@ def main() -> int:
     parser.add_argument("--horizon", type=int, default=60)
     parser.add_argument("--train-ratio", type=float, default=0.7)
     parser.add_argument("--walk-forward-folds", type=int, default=5)
+    parser.add_argument("--decision-min-confidence", type=float, default=0.55)
+    parser.add_argument("--decision-min-margin", type=float, default=0.10)
     parser.add_argument("--output", default="artifacts/model_report.json")
     args = parser.parse_args()
 
@@ -35,12 +38,28 @@ def main() -> int:
     baseline = evaluate_baselines(train, test)
     nearest_centroid = evaluate_nearest_centroid(train, test)
     softmax = evaluate_softmax(train, test)
+    decisions = evaluate_softmax_decisions(
+        train,
+        test,
+        min_confidence=args.decision_min_confidence,
+        min_margin=args.decision_min_margin,
+    )
 
     non_overlapping = sample_non_overlapping(rows, args.horizon)
     non_overlap_train, non_overlap_test = temporal_split(non_overlapping, args.train_ratio)
     non_overlap_baseline = evaluate_baselines(non_overlap_train, non_overlap_test)
     non_overlap_nearest = evaluate_nearest_centroid(non_overlap_train, non_overlap_test) if non_overlap_test else None
     non_overlap_softmax = evaluate_softmax(non_overlap_train, non_overlap_test) if non_overlap_test else None
+    non_overlap_decisions = (
+        evaluate_softmax_decisions(
+            non_overlap_train,
+            non_overlap_test,
+            min_confidence=args.decision_min_confidence,
+            min_margin=args.decision_min_margin,
+        )
+        if non_overlap_test
+        else None
+    )
     walk_forward = evaluate_walk_forward(rows, folds=args.walk_forward_folds)
 
     payload = {
@@ -54,6 +73,11 @@ def main() -> int:
         "baseline": asdict(baseline),
         "nearest_centroid": asdict(nearest_centroid),
         "softmax": asdict(softmax),
+        "decision_policy": {
+            "min_confidence": args.decision_min_confidence,
+            "min_margin": args.decision_min_margin,
+            "softmax": asdict(decisions),
+        },
         "non_overlapping": {
             "rows": len(non_overlapping),
             "train_rows": len(non_overlap_train),
@@ -61,6 +85,7 @@ def main() -> int:
             "baseline": asdict(non_overlap_baseline),
             "nearest_centroid": asdict(non_overlap_nearest) if non_overlap_nearest else None,
             "softmax": asdict(non_overlap_softmax) if non_overlap_softmax else None,
+            "decision_policy": asdict(non_overlap_decisions) if non_overlap_decisions else None,
         },
         "walk_forward": asdict(walk_forward),
     }
