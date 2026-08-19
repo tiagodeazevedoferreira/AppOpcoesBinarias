@@ -40,7 +40,7 @@ class DerivPublicClient:
             raise ConnectionError("Deriv WebSocket returned no data")
         response = json.loads(raw)
         if not isinstance(response, dict):
-            raise ValueError("Deriv response is not a JSON object")
+            raise TypeError("Deriv response is not a JSON object")
         if "error" in response:
             error = response["error"]
             code = error.get("code", "UNKNOWN") if isinstance(error, dict) else "UNKNOWN"
