@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app_opcoes_binarias.data.deriv_client import DerivPublicClient
@@ -14,7 +14,7 @@ def normalize_tick(response: dict[str, Any]) -> dict[str, Any]:
     return {
         "symbol": tick["symbol"],
         "epoch": epoch,
-        "timestamp": datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat(),
+        "timestamp": datetime.fromtimestamp(epoch, tz=UTC).isoformat(),
         "quote": float(tick["quote"]),
     }
 
@@ -35,7 +35,7 @@ def collect_history(client: DerivPublicClient, symbol: str, count: int = 1000) -
         {
             "symbol": symbol,
             "epoch": int(epoch),
-            "timestamp": datetime.fromtimestamp(int(epoch), tz=timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(int(epoch), tz=UTC).isoformat(),
             "quote": float(price),
         }
         for price, epoch in zip(prices, times, strict=True)
