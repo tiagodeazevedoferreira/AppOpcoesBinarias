@@ -19,6 +19,7 @@ from app_opcoes_binarias.research.model_evaluation import (
 )
 from app_opcoes_binarias.research.regime_evaluation import evaluate_regime_persistence
 from app_opcoes_binarias.research.regime_walk_forward import evaluate_regime_walk_forward
+from app_opcoes_binarias.research.selection import classify_strategy
 from app_opcoes_binarias.research.stability import evaluate_walk_forward_stability
 from app_opcoes_binarias.research.walk_forward import evaluate_walk_forward
 
@@ -94,6 +95,25 @@ def main() -> int:
     rows_by_horizon = {horizon: build_dataset(ticks, horizon_seconds=horizon) for horizon in horizon_values}
     horizon_reports = evaluate_horizons(rows_by_horizon, train_ratio=args.train_ratio)
 
+    selection = {
+        "softmax": asdict(
+            classify_strategy(
+                "softmax",
+                walk_forward.softmax.accuracy,
+                walk_forward.softmax.total,
+                walk_forward.softmax.total / len(test) if test else 0.0,
+            )
+        ),
+        "regime_persistence": asdict(
+            classify_strategy(
+                "regime_persistence",
+                regime_walk_forward.regime_persistence.accuracy,
+                regime_walk_forward.directional_decisions,
+                regime_walk_forward.directional_decisions / len(rows) if rows else 0.0,
+            )
+        ),
+    }
+
     payload = {
         "symbol": args.symbol,
         "horizon_seconds": args.horizon,
@@ -114,6 +134,7 @@ def main() -> int:
         "horizon_comparison": [asdict(report) for report in horizon_reports],
         "regime_persistence": asdict(regime_persistence),
         "regime_walk_forward": asdict(regime_walk_forward),
+        "strategy_selection": selection,
         "non_overlapping": {
             "rows": len(non_overlapping),
             "train_rows": len(non_overlap_train),
