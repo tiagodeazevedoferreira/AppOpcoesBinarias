@@ -7,6 +7,7 @@ from app_opcoes_binarias.config.settings import settings
 from app_opcoes_binarias.data.collector import collect_history
 from app_opcoes_binarias.data.deriv_client import DerivPublicClient
 from app_opcoes_binarias.data.firebase_store import FirebaseStore
+from app_opcoes_binarias.data.quality import assess_ticks
 from app_opcoes_binarias.data.tick_storage import TickStorage
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,11 @@ def main() -> int:
         ticks = collect_history(client, args.symbol, count=args.count)
     finally:
         client.close()
+
+    quality = assess_ticks(ticks)
+    logger.info("Market data quality: %s", quality)
+    if not quality["valid_shape"] or not quality["ordered"]:
+        raise RuntimeError("Collected market data failed structural quality checks")
 
     store = FirebaseStore(settings.firebase_database_url)
     persisted = TickStorage(store).write_batch(args.symbol, ticks)
