@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from .baselines import ClassificationMetrics, accuracy
 from .dataset import ResearchRow
-from .models import NearestCentroidClassifier, _features
+from .models import NearestCentroidClassifier, SoftmaxClassifier, _features
 
 
 @dataclass(frozen=True)
@@ -16,11 +16,7 @@ class ModelReport:
     skipped_test_rows: int
 
 
-def evaluate_nearest_centroid(
-    train: list[ResearchRow], test: list[ResearchRow]
-) -> ModelReport:
-    """Fit on train only and evaluate complete-feature test rows."""
-    classifier = NearestCentroidClassifier.fit(train)
+def _evaluate_predictions(train: list[ResearchRow], test: list[ResearchRow], predictor) -> ModelReport:
     truth: list[str] = []
     predictions: list[str] = []
     skipped = 0
@@ -28,7 +24,7 @@ def evaluate_nearest_centroid(
         if row.label is None or _features(row) is None:
             skipped += 1
             continue
-        prediction = classifier.predict(row)
+        prediction = predictor(row)
         if prediction is None:
             skipped += 1
             continue
@@ -41,3 +37,23 @@ def evaluate_nearest_centroid(
         usable_test_rows=len(truth),
         skipped_test_rows=skipped,
     )
+
+
+def evaluate_nearest_centroid(
+    train: list[ResearchRow], test: list[ResearchRow]
+) -> ModelReport:
+    """Fit on train only and evaluate complete-feature test rows."""
+    classifier = NearestCentroidClassifier.fit(train)
+    return _evaluate_predictions(train, test, classifier.predict)
+
+
+def evaluate_softmax(
+    train: list[ResearchRow],
+    test: list[ResearchRow],
+    *,
+    learning_rate: float = 0.05,
+    epochs: int = 300,
+) -> ModelReport:
+    """Fit a train-only linear softmax classifier and evaluate it out of sample."""
+    classifier = SoftmaxClassifier.fit(train, learning_rate=learning_rate, epochs=epochs)
+    return _evaluate_predictions(train, test, classifier.predict)
