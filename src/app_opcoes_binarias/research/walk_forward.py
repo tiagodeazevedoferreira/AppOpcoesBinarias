@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .baselines import ClassificationMetrics, accuracy
-from .dataset import ResearchRow, temporal_split
+from .baselines import ClassificationMetrics
+from .dataset import ResearchRow
 from .evaluation import evaluate_baselines
 from .model_evaluation import evaluate_nearest_centroid, evaluate_softmax
 
@@ -37,12 +37,7 @@ def _aggregate(metrics: list[ClassificationMetrics]) -> ClassificationMetrics:
     )
 
 
-def evaluate_walk_forward(
-    rows: list[ResearchRow],
-    *,
-    folds: int = 5,
-    train_ratio: float = 0.7,
-) -> WalkForwardReport:
+def evaluate_walk_forward(rows: list[ResearchRow], *, folds: int = 5) -> WalkForwardReport:
     """Evaluate sequential expanding-window folds without future leakage."""
     if folds < 2:
         raise ValueError("folds must be at least 2")
@@ -64,7 +59,6 @@ def evaluate_walk_forward(
         test = ordered[test_start:test_end]
         if not train or not test:
             continue
-        train, _ = temporal_split(train, train_ratio=1.0 - 1.0 / len(train))
         baseline = evaluate_baselines(train, test)
         centroid = evaluate_nearest_centroid(train, test)
         softmax = evaluate_softmax(train, test)
