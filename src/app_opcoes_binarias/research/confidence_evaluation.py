@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 
-from .baselines import ClassificationMetrics, accuracy
+from .baselines import accuracy
 from .dataset import ResearchRow
 from .model_evaluation import _features
 from .models import SoftmaxClassifier
