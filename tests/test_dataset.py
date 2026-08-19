@@ -11,6 +11,8 @@ def test_build_dataset_orders_ticks_and_keeps_future_only_in_label():
     )
     assert [row.epoch for row in rows] == [0, 60, 120]
     assert rows[0].return_1 is None
+    assert rows[0].ema_distance_10 is None
+    assert rows[0].directional_consistency_5 is None
     assert rows[0].label == "RISE"
     assert rows[0].actual_horizon_seconds == 60
     assert rows[2].label is None
@@ -19,7 +21,7 @@ def test_build_dataset_orders_ticks_and_keeps_future_only_in_label():
 
 def test_temporal_split_does_not_shuffle():
     rows = [
-        ResearchRow(i, 100.0, None, None, None, None, None)
+        ResearchRow(i, 100.0, None, None, None, None, None, None, None)
         for i in range(10)
     ]
     train, test = temporal_split(rows, 0.7)
@@ -37,3 +39,13 @@ def test_dataset_records_actual_horizon_when_ticks_are_irregular():
     )
     assert rows[0].label == "RISE"
     assert rows[0].actual_horizon_seconds == 65
+
+
+def test_dataset_features_use_only_available_history():
+    rows = build_dataset(
+        [{"epoch": i, "quote": 100.0 + i} for i in range(12)],
+    )
+    assert rows[8].ema_distance_10 is None
+    assert rows[9].ema_distance_10 is not None
+    assert rows[3].directional_consistency_5 is None
+    assert rows[4].directional_consistency_5 == 1.0
