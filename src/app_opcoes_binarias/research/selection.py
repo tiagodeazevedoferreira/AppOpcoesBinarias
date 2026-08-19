@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -16,15 +17,30 @@ class StrategySelection:
 
 def classify_strategy(
     name: str,
-    accuracy: float,
-    total_decisions: int,
-    decision_rate: float,
+    observed_accuracy: float,
+    observed_total_decisions: int,
+    observed_decision_rate: float,
     *,
     minimum_accuracy: float = 0.55,
     minimum_decisions: int = 30,
     minimum_rate: float = 0.01,
+    **overrides: Any,
 ) -> StrategySelection:
     """Classify an out-of-sample strategy conservatively for research progression."""
+    if "accuracy" in overrides:
+        observed_accuracy = overrides["accuracy"]
+    if "total_decisions" in overrides:
+        observed_total_decisions = overrides["total_decisions"]
+    if "decision_rate" in overrides:
+        observed_decision_rate = overrides["decision_rate"]
+    unknown = set(overrides) - {"accuracy", "total_decisions", "decision_rate"}
+    if unknown:
+        raise TypeError(f"unexpected metric overrides: {sorted(unknown)}")
+
+    accuracy = float(observed_accuracy)
+    total_decisions = int(observed_total_decisions)
+    decision_rate = float(observed_decision_rate)
+
     if not 0.0 <= accuracy <= 1.0:
         raise ValueError("accuracy must be between 0 and 1")
     if total_decisions < 0:
