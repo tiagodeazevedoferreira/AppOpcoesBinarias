@@ -1,5 +1,5 @@
-from app_opcoes_binarias.research.horizon_evaluation import evaluate_horizons
 from app_opcoes_binarias.research.dataset import ResearchRow
+from app_opcoes_binarias.research.horizon_evaluation import evaluate_horizons
 
 
 def rows_for(horizon: int) -> list[ResearchRow]:
