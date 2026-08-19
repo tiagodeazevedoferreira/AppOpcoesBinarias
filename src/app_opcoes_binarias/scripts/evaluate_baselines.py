@@ -9,7 +9,7 @@ from app_opcoes_binarias.config.settings import settings
 from app_opcoes_binarias.data.firebase_store import FirebaseStore
 from app_opcoes_binarias.data.tick_storage import TickStorage
 from app_opcoes_binarias.research.dataset import build_dataset, temporal_split
-from app_opcoes_binarias.research.evaluation import evaluate_baselines
+from app_opcoes_binarias.research.evaluation import evaluate_baselines, sample_non_overlapping
 
 
 def main() -> int:
@@ -28,6 +28,10 @@ def main() -> int:
     train, test = temporal_split(rows, args.train_ratio)
     report = evaluate_baselines(train, test)
 
+    non_overlapping = sample_non_overlapping(rows, args.horizon)
+    non_overlap_train, non_overlap_test = temporal_split(non_overlapping, args.train_ratio)
+    non_overlap_report = evaluate_baselines(non_overlap_train, non_overlap_test)
+
     payload = {
         "symbol": args.symbol,
         "horizon_seconds": args.horizon,
@@ -42,6 +46,12 @@ def main() -> int:
             "max": max((row.actual_horizon_seconds for row in rows if row.actual_horizon_seconds is not None), default=None),
         },
         "report": asdict(report),
+        "non_overlapping": {
+            "rows": len(non_overlapping),
+            "train_rows": len(non_overlap_train),
+            "test_rows": len(non_overlap_test),
+            "report": asdict(non_overlap_report),
+        },
     }
 
     output = Path(args.output)
