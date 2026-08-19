@@ -12,6 +12,7 @@ from app_opcoes_binarias.research.confidence_evaluation import evaluate_softmax_
 from app_opcoes_binarias.research.dataset import build_dataset, temporal_split
 from app_opcoes_binarias.research.decision_evaluation import evaluate_softmax_decisions
 from app_opcoes_binarias.research.evaluation import evaluate_baselines, sample_non_overlapping
+from app_opcoes_binarias.research.horizon_evaluation import evaluate_horizons
 from app_opcoes_binarias.research.model_evaluation import (
     evaluate_nearest_centroid,
     evaluate_softmax,
@@ -71,6 +72,10 @@ def main() -> int:
     walk_forward = evaluate_walk_forward(rows, folds=args.walk_forward_folds)
     stability = evaluate_walk_forward_stability(walk_forward)
 
+    horizon_values = tuple(sorted({15, 30, 60, 120, 300, args.horizon}))
+    rows_by_horizon = {horizon: build_dataset(ticks, horizon_seconds=horizon) for horizon in horizon_values}
+    horizon_reports = evaluate_horizons(rows_by_horizon, train_ratio=args.train_ratio)
+
     payload = {
         "symbol": args.symbol,
         "horizon_seconds": args.horizon,
@@ -88,6 +93,7 @@ def main() -> int:
             "softmax": asdict(decisions),
         },
         "confidence": asdict(confidence),
+        "horizon_comparison": [asdict(report) for report in horizon_reports],
         "non_overlapping": {
             "rows": len(non_overlapping),
             "train_rows": len(non_overlap_train),
