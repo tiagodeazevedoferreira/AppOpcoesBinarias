@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class DerivPublicClient:
-    """Client for Deriv's current public Options market-data WebSocket."""
+    """Client for Deriv's current public market-data WebSocket."""
 
     def __init__(self, ws_url: str, timeout: float = 15.0) -> None:
         self.ws_url = ws_url
@@ -59,18 +59,33 @@ class DerivPublicClient:
             raise ValueError("symbol is required")
         return self.request({"contracts_for": symbol, "req_id": 2})
 
-    def get_ticks_history(self, symbol: str, count: int = 1000) -> dict[str, Any]:
+    def get_ticks_history(
+        self,
+        symbol: str,
+        count: int = 1000,
+        *,
+        start: int | None = None,
+        end: int | str = "latest",
+    ) -> dict[str, Any]:
+        if not symbol:
+            raise ValueError("symbol is required")
         if count < 1:
             raise ValueError("count must be greater than zero")
-        return self.request(
-            {
-                "ticks_history": symbol,
-                "count": count,
-                "end": "latest",
-                "style": "ticks",
-                "req_id": 3,
-            }
-        )
+        if start is not None and start < 0:
+            raise ValueError("start must be non-negative")
+        if isinstance(end, int) and end < 0:
+            raise ValueError("end must be non-negative")
+        payload: dict[str, Any] = {
+            "ticks_history": symbol,
+            "count": count,
+            "end": end,
+            "style": "ticks",
+            "subscribe": 0,
+            "req_id": 3,
+        }
+        if start is not None:
+            payload["start"] = start
+        return self.request(payload)
 
     def subscribe_ticks(self, symbol: str) -> None:
         if not symbol:
