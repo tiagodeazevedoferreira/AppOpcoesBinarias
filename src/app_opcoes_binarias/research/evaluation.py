@@ -44,3 +44,19 @@ def evaluate_baselines(train: list[ResearchRow], test: list[ResearchRow]) -> Bas
         train_distribution=dict(Counter(train_labeled)),
         test_distribution=dict(Counter(row.label for row in test_labeled)),
     )
+
+
+def sample_non_overlapping(rows: list[ResearchRow], horizon_seconds: int) -> list[ResearchRow]:
+    """Select decision rows whose observation times are at least one horizon apart."""
+    if horizon_seconds <= 0:
+        raise ValueError("horizon_seconds must be positive")
+    ordered = sorted(rows, key=lambda row: row.epoch)
+    selected: list[ResearchRow] = []
+    next_allowed: int | None = None
+    for row in ordered:
+        if row.label is None:
+            continue
+        if next_allowed is None or row.epoch >= next_allowed:
+            selected.append(row)
+            next_allowed = row.epoch + horizon_seconds
+    return selected
