@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .features import momentum, returns, rolling_volatility
-from .labeling import label_60s
+from .labeling import PricePoint, build_outcome
 
 
 @dataclass(frozen=True)
@@ -17,18 +17,27 @@ class ResearchRow:
     momentum_2: float | None
     volatility_5: float | None
     label: str | None
+    actual_horizon_seconds: float | None
 
 
-def build_dataset(ticks: list[dict[str, Any]]) -> list[ResearchRow]:
-    """Build rows using only current/past prices for features and future price for label."""
+def build_dataset(ticks: list[dict[str, Any]], horizon_seconds: int = 60) -> list[ResearchRow]:
+    """Build rows using only current/past prices for features and future price for target."""
+    if horizon_seconds <= 0:
+        raise ValueError("horizon_seconds must be positive")
     ordered = sorted(ticks, key=lambda tick: int(tick["epoch"]))
     prices = [float(tick["quote"]) for tick in ordered]
     epochs = [int(tick["epoch"]) for tick in ordered]
+    points = [PricePoint(epoch=epoch, quote=price) for epoch, price in zip(epochs, prices)]
     rows: list[ResearchRow] = []
 
     for i, (epoch, price) in enumerate(zip(epochs, prices)):
         past = prices[: i + 1]
-        future = next((p for e, p in zip(epochs, prices) if e >= epoch + 60), None)
+        outcome = build_outcome(points, i, horizon_seconds)
+        actual_horizon = (
+            outcome.future_epoch - outcome.observation_epoch
+            if outcome.future_epoch is not None
+            else None
+        )
         rows.append(
             ResearchRow(
                 epoch=epoch,
@@ -36,7 +45,8 @@ def build_dataset(ticks: list[dict[str, Any]]) -> list[ResearchRow]:
                 return_1=returns(past)[-1] if len(past) >= 2 else None,
                 momentum_2=momentum(past, 2),
                 volatility_5=rolling_volatility(past, 5),
-                label=label_60s(price, future),
+                label=outcome.direction,
+                actual_horizon_seconds=actual_horizon,
             )
         )
     return rows
