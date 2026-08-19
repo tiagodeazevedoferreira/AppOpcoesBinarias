@@ -36,6 +36,14 @@ class FirebaseStore:
             raise ValueError("path must be a non-empty relative Firebase path")
         db.reference(path).set(value)
 
+    def update(self, path: str, values: dict[str, Any]) -> None:
+        if not path or path.startswith("/"):
+            raise ValueError("path must be a non-empty relative Firebase path")
+        if not isinstance(values, dict):
+            raise TypeError("values must be a dictionary")
+        if values:
+            db.reference(path).update(values)
+
     def read(self, path: str) -> Any:
         if not path or path.startswith("/"):
             raise ValueError("path must be a non-empty relative Firebase path")
