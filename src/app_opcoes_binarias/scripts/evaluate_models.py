@@ -95,13 +95,14 @@ def main() -> int:
     rows_by_horizon = {horizon: build_dataset(ticks, horizon_seconds=horizon) for horizon in horizon_values}
     horizon_reports = evaluate_horizons(rows_by_horizon, train_ratio=args.train_ratio)
 
-    selection = {
+    walk_forward_test_rows = sum(fold.test_rows for fold in walk_forward.folds)
+    strategy_selection = {
         "softmax": asdict(
             classify_strategy(
                 "softmax",
                 walk_forward.softmax.accuracy,
                 walk_forward.softmax.total,
-                walk_forward.softmax.total / len(test) if test else 0.0,
+                walk_forward.softmax.total / walk_forward_test_rows if walk_forward_test_rows else 0.0,
             )
         ),
         "regime_persistence": asdict(
@@ -109,7 +110,9 @@ def main() -> int:
                 "regime_persistence",
                 regime_walk_forward.regime_persistence.accuracy,
                 regime_walk_forward.directional_decisions,
-                regime_walk_forward.directional_decisions / len(rows) if rows else 0.0,
+                regime_walk_forward.directional_decisions / walk_forward_test_rows
+                if walk_forward_test_rows
+                else 0.0,
             )
         ),
     }
@@ -134,7 +137,7 @@ def main() -> int:
         "horizon_comparison": [asdict(report) for report in horizon_reports],
         "regime_persistence": asdict(regime_persistence),
         "regime_walk_forward": asdict(regime_walk_forward),
-        "strategy_selection": selection,
+        "strategy_selection": strategy_selection,
         "non_overlapping": {
             "rows": len(non_overlapping),
             "train_rows": len(non_overlap_train),
