@@ -16,10 +16,10 @@ def returns(prices: Sequence[float], lag: int = 1) -> list[float]:
 
 
 def rolling_volatility(prices: Sequence[float], window: int) -> float | None:
-    """Population standard deviation of simple returns in the trailing window."""
-    if window <= 1 or len(prices) < window + 1:
+    """Population standard deviation of returns over the trailing price window."""
+    if window <= 1 or len(prices) < window:
         return None
-    values = returns(prices[-(window + 1) :])
+    values = returns(prices[-window:])
     if not values:
         return None
     mean = sum(values) / len(values)
