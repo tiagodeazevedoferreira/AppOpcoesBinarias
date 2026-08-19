@@ -22,7 +22,9 @@ def make_rows() -> list[ResearchRow]:
 
 
 def test_regime_strategy_needs_history_and_can_no_bet() -> None:
-    report = evaluate_regime_persistence(make_rows()[:10], make_rows()[10:], window=60)
+    train = make_rows()[:10]
+    test = make_rows()[10:]
+    report = evaluate_regime_persistence(train, test, window=60)
     assert report.directional_decisions == 0
     assert report.no_bet_decisions == 10
     assert report.decision_rate == 0.0
@@ -30,7 +32,9 @@ def test_regime_strategy_needs_history_and_can_no_bet() -> None:
 
 def test_regime_strategy_reports_directional_accuracy() -> None:
     rows = make_rows()
-    report = evaluate_regime_persistence(rows[:10], rows[10:], window=5)
+    train = rows[:15]
+    test = rows[15:]
+    report = evaluate_regime_persistence(train, test, window=5)
     assert report.trend_rows == report.directional_decisions
     assert report.correct == report.directional_decisions
     assert report.accuracy == 1.0
