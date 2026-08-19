@@ -4,7 +4,6 @@ from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
-
 REQUIRED_TICK_FIELDS = frozenset({"symbol", "epoch", "quote"})
 
 
@@ -27,6 +26,14 @@ def assess_ticks(ticks: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "valid_shape": valid_shape,
         "first_epoch": first_epoch,
         "last_epoch": last_epoch,
-        "first_timestamp": datetime.fromtimestamp(first_epoch, tz=UTC).isoformat() if first_epoch is not None else None,
-        "last_timestamp": datetime.fromtimestamp(last_epoch, tz=UTC).isoformat() if last_epoch is not None else None,
+        "first_timestamp": (
+            datetime.fromtimestamp(first_epoch, tz=UTC).isoformat()
+            if first_epoch is not None
+            else None
+        ),
+        "last_timestamp": (
+            datetime.fromtimestamp(last_epoch, tz=UTC).isoformat()
+            if last_epoch is not None
+            else None
+        ),
     }
