@@ -29,6 +29,6 @@ class TickStorage:
         if not value:
             return []
         if not isinstance(value, dict):
-            raise ValueError("Firebase tick collection must be an object")
+            raise TypeError("Firebase tick collection must be an object")
         ticks = [tick for tick in value.values() if isinstance(tick, dict)]
         return sorted(ticks, key=lambda tick: int(tick["epoch"]))
