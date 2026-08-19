@@ -29,5 +29,10 @@ jobs:
       - name: Install project
         run: python -m pip install --upgrade pip && pip install .
 
-      - name: Collect EUR/USD history
-        run: python -m app_opcoes_binarias.scripts.collect_and_store --symbol frxEURUSD --count 1000
+      - name: Backfill recent EUR/USD history
+        run: >-
+          python -m app_opcoes_binarias.scripts.collect_and_store
+          --symbol frxEURUSD
+          --hours 2
+          --batch-size 1000
+          --max-batches 20
