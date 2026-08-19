@@ -42,24 +42,28 @@ class ResearchRow:
                 raise TypeError("ResearchRow accepts either positional or named optional fields")
             values = {field: kwargs.get(field) for field in fields}
         elif len(args) == 2:
-            values = dict(zip(fields[:2], args))
-            values.update(ema_distance_10=None, directional_consistency_5=None)
+            values = {
+                "label": args[0],
+                "actual_horizon_seconds": args[1],
+                "ema_distance_10": None,
+                "directional_consistency_5": None,
+            }
         elif len(args) == 4:
             first, second, third, fourth = args
             if isinstance(third, str) or third is None:
-                values = dict(
-                    ema_distance_10=first,
-                    directional_consistency_5=second,
-                    label=third,
-                    actual_horizon_seconds=fourth,
-                )
+                values = {
+                    "ema_distance_10": first,
+                    "directional_consistency_5": second,
+                    "label": third,
+                    "actual_horizon_seconds": fourth,
+                }
             else:
-                values = dict(
-                    label=first,
-                    actual_horizon_seconds=second,
-                    ema_distance_10=third,
-                    directional_consistency_5=fourth,
-                )
+                values = {
+                    "label": first,
+                    "actual_horizon_seconds": second,
+                    "ema_distance_10": third,
+                    "directional_consistency_5": fourth,
+                }
         else:
             raise TypeError("ResearchRow expects 7 or 9 positional arguments")
         object.__setattr__(self, "epoch", epoch)
@@ -83,22 +87,30 @@ def build_dataset(ticks: list[dict[str, Any]], horizon_seconds: int = 60) -> lis
     for i, (epoch, price) in enumerate(zip(epochs, prices)):
         past = prices[: i + 1]
         outcome = build_outcome(points, i, horizon_seconds)
-        actual_horizon = outcome.future_epoch - outcome.observation_epoch if outcome.future_epoch is not None else None
-        rows.append(ResearchRow(
-            epoch=epoch,
-            quote=price,
-            return_1=returns(past)[-1] if len(past) >= 2 else None,
-            momentum_2=momentum(past, 2),
-            volatility_5=rolling_volatility(past, 5),
-            label=outcome.direction,
-            actual_horizon_seconds=actual_horizon,
-            ema_distance_10=ema_distance(past, 10),
-            directional_consistency_5=directional_consistency(past, 5),
-        ))
+        actual_horizon = (
+            outcome.future_epoch - outcome.observation_epoch
+            if outcome.future_epoch is not None
+            else None
+        )
+        rows.append(
+            ResearchRow(
+                epoch=epoch,
+                quote=price,
+                return_1=returns(past)[-1] if len(past) >= 2 else None,
+                momentum_2=momentum(past, 2),
+                volatility_5=rolling_volatility(past, 5),
+                label=outcome.direction,
+                actual_horizon_seconds=actual_horizon,
+                ema_distance_10=ema_distance(past, 10),
+                directional_consistency_5=directional_consistency(past, 5),
+            )
+        )
     return rows
 
 
-def temporal_split(rows: list[ResearchRow], train_ratio: float = 0.7) -> tuple[list[ResearchRow], list[ResearchRow]]:
+def temporal_split(
+    rows: list[ResearchRow], train_ratio: float = 0.7
+) -> tuple[list[ResearchRow], list[ResearchRow]]:
     """Split chronologically; never shuffle observations across time."""
     if not 0 < train_ratio < 1:
         raise ValueError("train_ratio must be between 0 and 1")
