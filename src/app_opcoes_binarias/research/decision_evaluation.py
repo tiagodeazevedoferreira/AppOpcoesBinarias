@@ -4,8 +4,8 @@ from collections import Counter
 from dataclasses import dataclass
 
 from .baselines import ClassificationMetrics, accuracy
-from .decision import DecisionPolicy
 from .dataset import ResearchRow
+from .decision import DecisionPolicy
 from .model_evaluation import _features
 from .models import SoftmaxClassifier
 
