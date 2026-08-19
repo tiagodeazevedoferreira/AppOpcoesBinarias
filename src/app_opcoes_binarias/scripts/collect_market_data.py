@@ -6,6 +6,8 @@ from pathlib import Path
 from app_opcoes_binarias.config.settings import settings
 from app_opcoes_binarias.data.deriv_client import DerivPublicClient
 
+logger = logging.getLogger(__name__)
+
 
 def collect(symbol: str, count: int, output: Path) -> int:
     client = DerivPublicClient(settings.deriv_ws_url)
@@ -35,7 +37,7 @@ def main() -> None:
     args = parser.parse_args()
     logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)s %(message)s")
     written = collect(args.symbol, args.count, args.output)
-    logging.info("Collected %s historical ticks for %s", written, args.symbol)
+    logger.info("Collected %s historical ticks for %s", written, args.symbol)
 
 
 if __name__ == "__main__":
