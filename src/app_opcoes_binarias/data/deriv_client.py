@@ -5,7 +5,7 @@ import websocket
 
 
 class DerivPublicClient:
-    """Minimal client for Deriv's public market-data WebSocket API."""
+    """Client for Deriv's current public Options market-data WebSocket API."""
 
     def __init__(self, ws_url: str) -> None:
         self.ws_url = ws_url
@@ -27,16 +27,27 @@ class DerivPublicClient:
         raw = self._ws.recv()
         response = json.loads(raw)
 
+        if not isinstance(response, dict):
+            raise RuntimeError("Deriv API returned a non-object response")
+
         if "error" in response:
             error = response["error"]
-            raise RuntimeError(f"Deriv API error {error.get('code')}: {error.get('message')}")
+            if isinstance(error, dict):
+                raise RuntimeError(
+                    f"Deriv API error {error.get('code')}: {error.get('message')}"
+                )
+            raise RuntimeError(f"Deriv API error: {error}")
 
         return response
 
     def get_active_symbols(self) -> dict[str, Any]:
-        return self.request({"active_symbols": "brief", "product_type": "basic"})
+        # product_type and landing-company filters belong to the legacy API
+        # and were removed from the current API.
+        return self.request({"active_symbols": "brief"})
 
     def get_ticks_history(self, symbol: str, count: int = 1000) -> dict[str, Any]:
+        if not symbol:
+            raise ValueError("symbol cannot be empty")
         if count < 1:
             raise ValueError("count must be greater than zero")
         return self.request(
@@ -49,4 +60,11 @@ class DerivPublicClient:
         )
 
     def get_ticks(self, symbol: str) -> dict[str, Any]:
+        if not symbol:
+            raise ValueError("symbol cannot be empty")
         return self.request({"ticks": symbol, "subscribe": 1})
+
+    def get_contracts_for(self, symbol: str) -> dict[str, Any]:
+        if not symbol:
+            raise ValueError("symbol cannot be empty")
+        return self.request({"contracts_for": symbol})
