@@ -17,6 +17,7 @@ from app_opcoes_binarias.research.model_evaluation import (
     evaluate_nearest_centroid,
     evaluate_softmax,
 )
+from app_opcoes_binarias.research.regime_evaluation import evaluate_regime_persistence
 from app_opcoes_binarias.research.stability import evaluate_walk_forward_stability
 from app_opcoes_binarias.research.walk_forward import evaluate_walk_forward
 
@@ -48,6 +49,7 @@ def main() -> int:
         min_margin=args.decision_min_margin,
     )
     confidence = evaluate_softmax_confidence(train, test)
+    regime_persistence = evaluate_regime_persistence(train, test, window=min(args.horizon, 60))
 
     non_overlapping = sample_non_overlapping(rows, args.horizon)
     non_overlap_train, non_overlap_test = temporal_split(non_overlapping, args.train_ratio)
@@ -66,6 +68,15 @@ def main() -> int:
     )
     non_overlap_confidence = (
         evaluate_softmax_confidence(non_overlap_train, non_overlap_test)
+        if non_overlap_test
+        else None
+    )
+    non_overlap_regime = (
+        evaluate_regime_persistence(
+            non_overlap_train,
+            non_overlap_test,
+            window=min(args.horizon, 60),
+        )
         if non_overlap_test
         else None
     )
@@ -94,6 +105,7 @@ def main() -> int:
         },
         "confidence": asdict(confidence),
         "horizon_comparison": [asdict(report) for report in horizon_reports],
+        "regime_persistence": asdict(regime_persistence),
         "non_overlapping": {
             "rows": len(non_overlapping),
             "train_rows": len(non_overlap_train),
@@ -103,6 +115,7 @@ def main() -> int:
             "softmax": asdict(non_overlap_softmax) if non_overlap_softmax else None,
             "decision_policy": asdict(non_overlap_decisions) if non_overlap_decisions else None,
             "confidence": asdict(non_overlap_confidence) if non_overlap_confidence else None,
+            "regime_persistence": asdict(non_overlap_regime) if non_overlap_regime else None,
         },
         "walk_forward": asdict(walk_forward),
         "walk_forward_stability": asdict(stability),
