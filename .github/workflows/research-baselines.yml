@@ -1,0 +1,40 @@
+name: Research Baselines
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "47 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install project
+        run: python -m pip install --upgrade pip && pip install .
+
+      - name: Evaluate directional baselines
+        run: python -m app_opcoes_binarias.scripts.evaluate_baselines --symbol frxEURUSD --horizon 60 --train-ratio 0.7
+
+      - name: Upload research report
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-research-report
+          path: artifacts/baseline_report.json
+          if-no-files-found: error
