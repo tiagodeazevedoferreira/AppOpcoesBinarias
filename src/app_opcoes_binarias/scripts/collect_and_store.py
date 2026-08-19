@@ -9,6 +9,8 @@ from app_opcoes_binarias.data.deriv_client import DerivPublicClient
 from app_opcoes_binarias.data.firebase_store import FirebaseStore
 from app_opcoes_binarias.data.tick_storage import TickStorage
 
+logger = logging.getLogger(__name__)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Collect Deriv ticks and persist them in Firebase.")
@@ -30,7 +32,7 @@ def main() -> int:
 
     store = FirebaseStore(settings.firebase_database_url)
     persisted = TickStorage(store).write_batch(args.symbol, ticks)
-    logging.info("Collected %s ticks and persisted %s", len(ticks), persisted)
+    logger.info("Collected %s ticks and persisted %s", len(ticks), persisted)
     return 0
 
 
