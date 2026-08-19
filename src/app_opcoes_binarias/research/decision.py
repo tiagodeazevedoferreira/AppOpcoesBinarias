@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping
 
 
 @dataclass(frozen=True)
@@ -34,7 +34,9 @@ class DecisionPolicy:
             raise ValueError("probabilities must have a positive sum")
 
         ordered = sorted(probabilities.items(), key=lambda item: item[1], reverse=True)
-        (top_label, top_value), (_, second_value) = ordered[0], (ordered[1] if len(ordered) > 1 else (None, 0.0))
+        (top_label, top_value), (_, second_value) = ordered[0], (
+            ordered[1] if len(ordered) > 1 else (None, 0.0)
+        )
         margin = top_value - second_value
 
         if top_label not in {"RISE", "FALL"}:
