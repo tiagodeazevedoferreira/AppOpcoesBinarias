@@ -11,12 +11,29 @@ def test_build_dataset_orders_ticks_and_keeps_future_only_in_label():
     )
     assert [row.epoch for row in rows] == [0, 60, 120]
     assert rows[0].return_1 is None
-    assert rows[0].label == "UP"
+    assert rows[0].label == "RISE"
+    assert rows[0].actual_horizon_seconds == 60
     assert rows[2].label is None
+    assert rows[2].actual_horizon_seconds is None
 
 
 def test_temporal_split_does_not_shuffle():
-    rows = [ResearchRow(i, 100.0, None, None, None, None) for i in range(10)]
+    rows = [
+        ResearchRow(i, 100.0, None, None, None, None, None)
+        for i in range(10)
+    ]
     train, test = temporal_split(rows, 0.7)
     assert [row.epoch for row in train] == list(range(7))
     assert [row.epoch for row in test] == list(range(7, 10))
+
+
+def test_dataset_records_actual_horizon_when_ticks_are_irregular():
+    rows = build_dataset(
+        [
+            {"epoch": 0, "quote": 100.0},
+            {"epoch": 10, "quote": 100.1},
+            {"epoch": 65, "quote": 100.2},
+        ]
+    )
+    assert rows[0].label == "RISE"
+    assert rows[0].actual_horizon_seconds == 65
