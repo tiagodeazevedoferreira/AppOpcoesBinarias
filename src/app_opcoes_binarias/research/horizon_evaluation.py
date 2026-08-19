@@ -15,7 +15,7 @@ class HorizonReport:
     test_rows: int
     majority: ClassificationMetrics
     persistence: ClassificationMetrics
-    non_overlapping_persistence: ClassificationMetrics
+    non_overlapping_persistence: ClassificationMetrics | None
 
 
 def evaluate_horizons(
@@ -30,10 +30,11 @@ def evaluate_horizons(
             continue
         baseline = evaluate_baselines(train, test)
         non_overlapping = sample_non_overlapping(rows, horizon)
-        _, non_overlap_test = temporal_split(non_overlapping, train_ratio)
-        non_overlap_baseline = evaluate_baselines(
-            non_overlapping[: len(non_overlapping) - len(non_overlap_test)],
-            non_overlap_test,
+        non_overlap_train, non_overlap_test = temporal_split(non_overlapping, train_ratio)
+        non_overlap_baseline = (
+            evaluate_baselines(non_overlap_train, non_overlap_test)
+            if non_overlap_train and non_overlap_test
+            else None
         )
         reports.append(
             HorizonReport(
@@ -43,7 +44,9 @@ def evaluate_horizons(
                 test_rows=len(test),
                 majority=baseline.majority,
                 persistence=baseline.persistence,
-                non_overlapping_persistence=non_overlap_baseline.persistence,
+                non_overlapping_persistence=(
+                    non_overlap_baseline.persistence if non_overlap_baseline else None
+                ),
             )
         )
     return tuple(reports)
