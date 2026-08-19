@@ -9,11 +9,7 @@ from firebase_admin import credentials, db
 
 
 class FirebaseStore:
-    """Small Firebase Realtime Database adapter.
-
-    The service-account JSON is read only from the FIREBASE_SERVICE_ACCOUNT
-    environment variable. It is never persisted by the application.
-    """
+    """Small Firebase Realtime Database adapter."""
 
     def __init__(self, database_url: str, service_account_json: str | None = None) -> None:
         self.database_url = database_url
@@ -25,12 +21,10 @@ class FirebaseStore:
             raise ValueError("Firebase database URL is required")
         if not self.service_account_json:
             raise ValueError("FIREBASE_SERVICE_ACCOUNT is required")
-
         try:
             service_account = json.loads(self.service_account_json)
         except json.JSONDecodeError as exc:
             raise ValueError("FIREBASE_SERVICE_ACCOUNT is not valid JSON") from exc
-
         if not firebase_admin._apps:
             firebase_admin.initialize_app(
                 credentials.Certificate(service_account),
@@ -41,6 +35,11 @@ class FirebaseStore:
         if not path or path.startswith("/"):
             raise ValueError("path must be a non-empty relative Firebase path")
         db.reference(path).set(value)
+
+    def read(self, path: str) -> Any:
+        if not path or path.startswith("/"):
+            raise ValueError("path must be a non-empty relative Firebase path")
+        return db.reference(path).get()
 
     def push(self, path: str, value: Any) -> str:
         if not path or path.startswith("/"):
