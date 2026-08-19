@@ -10,7 +10,7 @@ def test_normalize_tick() -> None:
 
     assert tick.symbol == "frxEURUSD"
     assert tick.epoch == 1766000000
-    assert tick.quote == pytest.approx(1.16542)
+    assert float(tick.quote) == pytest.approx(1.16542)
 
 
 def test_normalize_tick_rejects_missing_tick() -> None:
