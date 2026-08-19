@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from datetime import UTC, datetime
+from datetime import datetime, UTC
 from typing import Any
 
 REQUIRED_TICK_FIELDS = frozenset({"symbol", "epoch", "quote"})
