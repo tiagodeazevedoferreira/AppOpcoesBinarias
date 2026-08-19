@@ -80,7 +80,6 @@ class DerivPublicClient:
             "count": count,
             "end": end,
             "style": "ticks",
-            "subscribe": 0,
             "req_id": 3,
         }
         if start is not None:
