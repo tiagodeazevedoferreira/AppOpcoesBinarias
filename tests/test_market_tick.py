@@ -19,7 +19,7 @@ def test_market_tick_normalizes_current_deriv_payload() -> None:
 
 
 def test_market_tick_rejects_missing_tick() -> None:
-    with pytest.raises(ValueError, match="missing 'tick'"):
+    with pytest.raises(TypeError, match="missing 'tick'"):
         MarketTick.from_deriv({"msg_type": "error"})
 
 
