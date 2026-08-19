@@ -33,6 +33,6 @@ jobs:
         run: >-
           python -m app_opcoes_binarias.scripts.collect_and_store
           --symbol frxEURUSD
-          --hours 2
+          --hours 6
           --batch-size 1000
-          --max-batches 20
+          --max-batches 40
