@@ -18,6 +18,7 @@ from app_opcoes_binarias.research.model_evaluation import (
     evaluate_softmax,
 )
 from app_opcoes_binarias.research.regime_evaluation import evaluate_regime_persistence
+from app_opcoes_binarias.research.regime_walk_forward import evaluate_regime_walk_forward
 from app_opcoes_binarias.research.stability import evaluate_walk_forward_stability
 from app_opcoes_binarias.research.walk_forward import evaluate_walk_forward
 
@@ -49,7 +50,13 @@ def main() -> int:
         min_margin=args.decision_min_margin,
     )
     confidence = evaluate_softmax_confidence(train, test)
-    regime_persistence = evaluate_regime_persistence(train, test, window=min(args.horizon, 60))
+    regime_window = min(args.horizon, 60)
+    regime_persistence = evaluate_regime_persistence(train, test, window=regime_window)
+    regime_walk_forward = evaluate_regime_walk_forward(
+        rows,
+        folds=args.walk_forward_folds,
+        window=regime_window,
+    )
 
     non_overlapping = sample_non_overlapping(rows, args.horizon)
     non_overlap_train, non_overlap_test = temporal_split(non_overlapping, args.train_ratio)
@@ -75,7 +82,7 @@ def main() -> int:
         evaluate_regime_persistence(
             non_overlap_train,
             non_overlap_test,
-            window=min(args.horizon, 60),
+            window=regime_window,
         )
         if non_overlap_test
         else None
@@ -106,6 +113,7 @@ def main() -> int:
         "confidence": asdict(confidence),
         "horizon_comparison": [asdict(report) for report in horizon_reports],
         "regime_persistence": asdict(regime_persistence),
+        "regime_walk_forward": asdict(regime_walk_forward),
         "non_overlapping": {
             "rows": len(non_overlapping),
             "train_rows": len(non_overlap_train),
