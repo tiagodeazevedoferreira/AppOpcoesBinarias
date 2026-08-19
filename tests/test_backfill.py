@@ -30,7 +30,6 @@ def test_history_accepts_explicit_window() -> None:
             "count": 2,
             "end": 101,
             "style": "ticks",
-            "subscribe": 0,
             "req_id": 3,
             "start": 99,
         }
