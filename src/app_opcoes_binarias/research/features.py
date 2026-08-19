@@ -1,4 +1,4 @@
-"""Small, deterministic feature functions for the first research baseline."""
+"""Small, deterministic feature functions for directional research."""
 
 from __future__ import annotations
 
@@ -46,3 +46,24 @@ def ema(prices: Sequence[float], period: int) -> float | None:
     for price in prices[period:]:
         value = alpha * price + (1.0 - alpha) * value
     return value
+
+
+def ema_distance(prices: Sequence[float], period: int) -> float | None:
+    """Current price distance from its trailing EMA as a fraction."""
+    average = ema(prices, period)
+    if average is None or average == 0:
+        return None
+    return prices[-1] / average - 1.0
+
+
+def directional_consistency(prices: Sequence[float], window: int) -> float | None:
+    """Fraction of trailing price changes that share the dominant direction."""
+    if window <= 1 or len(prices) < window:
+        return None
+    changes = [b - a for a, b in zip(prices[-window:-1], prices[-window + 1 :])]
+    non_flat = [change for change in changes if change != 0]
+    if not non_flat:
+        return 0.0
+    positive = sum(change > 0 for change in non_flat)
+    negative = len(non_flat) - positive
+    return max(positive, negative) / len(non_flat)
