@@ -10,7 +10,10 @@ from app_opcoes_binarias.data.firebase_store import FirebaseStore
 from app_opcoes_binarias.data.tick_storage import TickStorage
 from app_opcoes_binarias.research.dataset import build_dataset, temporal_split
 from app_opcoes_binarias.research.evaluation import evaluate_baselines, sample_non_overlapping
-from app_opcoes_binarias.research.model_evaluation import evaluate_nearest_centroid, evaluate_softmax
+from app_opcoes_binarias.research.model_evaluation import (
+    evaluate_nearest_centroid,
+    evaluate_softmax,
+)
 
 
 def main() -> int:
