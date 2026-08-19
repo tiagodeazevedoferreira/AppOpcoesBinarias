@@ -22,3 +22,20 @@ def test_history_rejects_invalid_count() -> None:
     client = DerivPublicClient("wss://example.invalid")
     with pytest.raises(ValueError, match="greater than zero"):
         client.get_ticks_history("frxEURUSD", count=0)
+
+
+def test_history_omits_unsupported_zero_subscribe_flag() -> None:
+    client = DerivPublicClient("wss://example.invalid")
+    client.request = Mock(return_value={"history": {"prices": [], "times": []}})  # type: ignore[method-assign]
+
+    client.get_ticks_history("frxEURUSD", count=100, end=1766000000)
+
+    client.request.assert_called_once_with(
+        {
+            "ticks_history": "frxEURUSD",
+            "count": 100,
+            "end": 1766000000,
+            "style": "ticks",
+            "req_id": 3,
+        }
+    )
