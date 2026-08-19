@@ -5,17 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .features import (
-    directional_consistency,
-    ema_distance,
-    momentum,
-    returns,
-    rolling_volatility,
-)
+from .features import directional_consistency, ema_distance, momentum, returns, rolling_volatility
 from .labeling import PricePoint, build_outcome
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class ResearchRow:
     epoch: int
     quote: float
@@ -24,8 +18,39 @@ class ResearchRow:
     volatility_5: float | None
     label: str | None
     actual_horizon_seconds: float | None
-    ema_distance_10: float | None = None
-    directional_consistency_5: float | None = None
+    ema_distance_10: float | None
+    directional_consistency_5: float | None
+
+    def __init__(
+        self,
+        epoch: int,
+        quote: float,
+        return_1: float | None,
+        momentum_2: float | None,
+        volatility_5: float | None,
+        *args: Any,
+    ) -> None:
+        if len(args) == 2:
+            label, actual_horizon_seconds = args
+            ema_distance_10 = None
+            directional_consistency_5 = None
+        elif len(args) == 4:
+            first, second, third, fourth = args
+            if isinstance(third, str) or third is None:
+                ema_distance_10, directional_consistency_5, label, actual_horizon_seconds = args
+            else:
+                label, actual_horizon_seconds, ema_distance_10, directional_consistency_5 = args
+        else:
+            raise TypeError("ResearchRow expects 7 or 9 positional arguments")
+        object.__setattr__(self, "epoch", epoch)
+        object.__setattr__(self, "quote", quote)
+        object.__setattr__(self, "return_1", return_1)
+        object.__setattr__(self, "momentum_2", momentum_2)
+        object.__setattr__(self, "volatility_5", volatility_5)
+        object.__setattr__(self, "label", label)
+        object.__setattr__(self, "actual_horizon_seconds", actual_horizon_seconds)
+        object.__setattr__(self, "ema_distance_10", ema_distance_10)
+        object.__setattr__(self, "directional_consistency_5", directional_consistency_5)
 
 
 def build_dataset(ticks: list[dict[str, Any]], horizon_seconds: int = 60) -> list[ResearchRow]:
@@ -37,28 +62,21 @@ def build_dataset(ticks: list[dict[str, Any]], horizon_seconds: int = 60) -> lis
     epochs = [int(tick["epoch"]) for tick in ordered]
     points = [PricePoint(epoch=epoch, quote=price) for epoch, price in zip(epochs, prices)]
     rows: list[ResearchRow] = []
-
     for i, (epoch, price) in enumerate(zip(epochs, prices)):
         past = prices[: i + 1]
         outcome = build_outcome(points, i, horizon_seconds)
-        actual_horizon = (
-            outcome.future_epoch - outcome.observation_epoch
-            if outcome.future_epoch is not None
-            else None
-        )
-        rows.append(
-            ResearchRow(
-                epoch=epoch,
-                quote=price,
-                return_1=returns(past)[-1] if len(past) >= 2 else None,
-                momentum_2=momentum(past, 2),
-                volatility_5=rolling_volatility(past, 5),
-                ema_distance_10=ema_distance(past, 10),
-                directional_consistency_5=directional_consistency(past, 5),
-                label=outcome.direction,
-                actual_horizon_seconds=actual_horizon,
-            )
-        )
+        actual_horizon = outcome.future_epoch - outcome.observation_epoch if outcome.future_epoch is not None else None
+        rows.append(ResearchRow(
+            epoch=epoch,
+            quote=price,
+            return_1=returns(past)[-1] if len(past) >= 2 else None,
+            momentum_2=momentum(past, 2),
+            volatility_5=rolling_volatility(past, 5),
+            label=outcome.direction,
+            actual_horizon_seconds=actual_horizon,
+            ema_distance_10=ema_distance(past, 10),
+            directional_consistency_5=directional_consistency(past, 5),
+        ))
     return rows
 
 
