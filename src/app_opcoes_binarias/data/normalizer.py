@@ -8,7 +8,7 @@ def normalize_tick(payload: Mapping[str, Any]) -> MarketTick:
     """Normalize a Deriv tick response into the application's canonical model."""
     tick = payload.get("tick")
     if not isinstance(tick, Mapping):
-        raise TypeError("response does not contain a tick object")
+        raise ValueError("response does not contain a tick object")
 
     try:
         symbol = str(tick["symbol"])
