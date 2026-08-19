@@ -100,3 +100,87 @@ class NearestCentroidClassifier:
                 (a - b) ** 2 for a, b in zip(normalized, self.centroids[label])
             ),
         )
+
+
+@dataclass(frozen=True)
+class SoftmaxClassifier:
+    """Multiclass linear classifier trained only on the supplied training rows."""
+
+    stats: FeatureStats
+    labels: tuple[str, ...]
+    weights: tuple[tuple[float, ...], ...]
+    bias: tuple[float, ...]
+    learning_rate: float
+    epochs: int
+
+    @classmethod
+    def fit(
+        cls,
+        rows: list[ResearchRow],
+        *,
+        learning_rate: float = 0.05,
+        epochs: int = 300,
+    ) -> SoftmaxClassifier:
+        if learning_rate <= 0 or epochs <= 0:
+            raise ValueError("learning_rate and epochs must be positive")
+        labeled = [row for row in rows if row.label is not None and _features(row) is not None]
+        if not labeled:
+            raise ValueError("training data contains no complete labeled feature rows")
+        stats = _fit_stats(labeled)
+        vectors = [_normalize(_features(row), stats) for row in labeled]
+        labels = tuple(sorted({row.label for row in labeled}))
+        index = {label: i for i, label in enumerate(labels)}
+        width = len(FEATURE_NAMES)
+        weights = [[0.0] * width for _ in labels]
+        bias = [0.0] * len(labels)
+        for _ in range(epochs):
+            grad_w = [[0.0] * width for _ in labels]
+            grad_b = [0.0] * len(labels)
+            for vector, row in zip(vectors, labeled):
+                logits = [
+                    sum(w * x for w, x in zip(weights[k], vector)) + bias[k]
+                    for k in range(len(labels))
+                ]
+                maximum = max(logits)
+                exp_values = [math.exp(min(50.0, value - maximum)) for value in logits]
+                total = sum(exp_values)
+                probabilities = [value / total for value in exp_values]
+                target = index[row.label]
+                for k, probability in enumerate(probabilities):
+                    error = probability - (1.0 if k == target else 0.0)
+                    for j, value in enumerate(vector):
+                        grad_w[k][j] += error * value
+                    grad_b[k] += error
+            scale = 1.0 / len(vectors)
+            for k in range(len(labels)):
+                for j in range(width):
+                    weights[k][j] -= learning_rate * grad_w[k][j] * scale
+                bias[k] -= learning_rate * grad_b[k] * scale
+        return cls(
+            stats=stats,
+            labels=labels,
+            weights=tuple(tuple(row) for row in weights),
+            bias=tuple(bias),
+            learning_rate=learning_rate,
+            epochs=epochs,
+        )
+
+    def probabilities(self, row: ResearchRow) -> dict[str, float] | None:
+        vector = _features(row)
+        if vector is None:
+            return None
+        normalized = _normalize(vector, self.stats)
+        logits = [
+            sum(w * x for w, x in zip(weights, normalized)) + bias
+            for weights, bias in zip(self.weights, self.bias)
+        ]
+        maximum = max(logits)
+        exp_values = [math.exp(min(50.0, value - maximum)) for value in logits]
+        total = sum(exp_values)
+        return {label: value / total for label, value in zip(self.labels, exp_values)}
+
+    def predict(self, row: ResearchRow) -> str | None:
+        probabilities = self.probabilities(row)
+        if probabilities is None:
+            return None
+        return max(probabilities, key=probabilities.get)
