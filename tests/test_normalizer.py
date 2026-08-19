@@ -14,7 +14,7 @@ def test_normalize_tick() -> None:
 
 
 def test_normalize_tick_rejects_missing_tick() -> None:
-    with pytest.raises(ValueError, match="does not contain a tick"):
+    with pytest.raises(TypeError, match="does not contain a tick"):
         normalize_tick({})
 
 
