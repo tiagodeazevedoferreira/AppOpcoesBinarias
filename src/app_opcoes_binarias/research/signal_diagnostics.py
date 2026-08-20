@@ -31,8 +31,11 @@ def _corr(xs: list[float], ys: list[float]) -> float:
 def _sign_accuracy(xs: list[float], ys: list[float]) -> float:
     if not xs:
         return 0.0
-    return sum((x > 0) == (y > 0) for x, y in zip(xs, ys) if x != 0 and y != 0) / max(
-        1, sum(x != 0 and y != 0 for x, y in zip(xs, ys))
+    usable = sum(x != 0 and y != 0 for x, y in zip(xs, ys))
+    return (
+        sum((x > 0) == (y > 0) for x, y in zip(xs, ys) if x != 0 and y != 0) / usable
+        if usable
+        else 0.0
     )
 
 
@@ -51,20 +54,20 @@ def evaluate_signal_diagnostics(
     )
     epochs = [item[0] for item in ordered]
     prices = [item[1] for item in ordered]
-    returns = [0.0] + [prices[i] / prices[i - 1] - 1.0 if prices[i - 1] else 0.0 for i in range(1, len(prices))]
     reports: list[SignalDiagnostic] = []
     for lookback in lookbacks:
         xs: list[float] = []
         ys: list[float] = []
         epochs_used: list[int] = []
         for i, epoch in enumerate(epochs):
-            if i < lookback:
+            lookback_index = bisect.bisect_right(epochs, epoch - lookback, 0, i + 1) - 1
+            if lookback_index < 0 or prices[lookback_index] == 0 or prices[i] == 0:
                 continue
             future = bisect.bisect_left(epochs, epoch + horizon_seconds, i + 1)
             if future >= len(epochs):
                 continue
-            feature = sum(returns[i - lookback + 1 : i + 1])
-            target = prices[future] / prices[i] - 1.0 if prices[i] else 0.0
+            feature = prices[i] / prices[lookback_index] - 1.0
+            target = prices[future] / prices[i] - 1.0
             xs.append(feature)
             ys.append(target)
             epochs_used.append(epoch)
