@@ -1,0 +1,46 @@
+name: Research Label Tolerance
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "37 */12 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install project
+        run: python -m pip install --upgrade pip && pip install .
+
+      - name: Evaluate label tolerance
+        run: >-
+          python -m app_opcoes_binarias.scripts.evaluate_label_tolerance
+          --symbol frxEURUSD
+          --horizon 60
+          --train-ratio 0.7
+
+      - name: Upload tolerance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-label-tolerance-report
+          path: artifacts/label_tolerance_report.json
+          if-no-files-found: ignore
