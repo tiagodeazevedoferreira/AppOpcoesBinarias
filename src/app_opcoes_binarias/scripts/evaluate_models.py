@@ -17,6 +17,7 @@ from app_opcoes_binarias.research.model_evaluation import (
     evaluate_nearest_centroid,
     evaluate_softmax,
 )
+from app_opcoes_binarias.research.observable_baselines import evaluate_momentum_baseline
 from app_opcoes_binarias.research.regime_evaluation import evaluate_regime_persistence
 from app_opcoes_binarias.research.regime_walk_forward import evaluate_regime_walk_forward
 from app_opcoes_binarias.research.selection import classify_strategy
@@ -41,7 +42,8 @@ def main() -> int:
     ticks = TickStorage(FirebaseStore(settings.firebase_database_url)).read_all(args.symbol)
     rows = build_dataset(ticks, horizon_seconds=args.horizon)
     train, test = temporal_split(rows, args.train_ratio)
-    baseline = evaluate_baselines(train, test)
+    baseline_legacy = evaluate_baselines(train, test)
+    observable_momentum = evaluate_momentum_baseline(train, test, lookback_seconds=args.horizon)
     nearest_centroid = evaluate_nearest_centroid(train, test)
     softmax = evaluate_softmax(train, test)
     decisions = evaluate_softmax_decisions(
@@ -61,7 +63,12 @@ def main() -> int:
 
     non_overlapping = sample_non_overlapping(rows, args.horizon)
     non_overlap_train, non_overlap_test = temporal_split(non_overlapping, args.train_ratio)
-    non_overlap_baseline = evaluate_baselines(non_overlap_train, non_overlap_test)
+    non_overlap_baseline_legacy = evaluate_baselines(non_overlap_train, non_overlap_test)
+    non_overlap_observable_momentum = (
+        evaluate_momentum_baseline(non_overlap_train, non_overlap_test, lookback_seconds=args.horizon)
+        if non_overlap_test
+        else None
+    )
     non_overlap_nearest = evaluate_nearest_centroid(non_overlap_train, non_overlap_test) if non_overlap_test else None
     non_overlap_softmax = evaluate_softmax(non_overlap_train, non_overlap_test) if non_overlap_test else None
     non_overlap_decisions = (
@@ -125,7 +132,11 @@ def main() -> int:
         "dataset_rows": len(rows),
         "train_rows": len(train),
         "test_rows": len(test),
-        "baseline": asdict(baseline),
+        "baseline_legacy": asdict(baseline_legacy),
+        "baseline_observable_momentum": {
+            "lookback_seconds": args.horizon,
+            "metrics": asdict(observable_momentum),
+        },
         "nearest_centroid": asdict(nearest_centroid),
         "softmax": asdict(softmax),
         "decision_policy": {
@@ -142,7 +153,15 @@ def main() -> int:
             "rows": len(non_overlapping),
             "train_rows": len(non_overlap_train),
             "test_rows": len(non_overlap_test),
-            "baseline": asdict(non_overlap_baseline),
+            "baseline_legacy": asdict(non_overlap_baseline_legacy),
+            "baseline_observable_momentum": (
+                {
+                    "lookback_seconds": args.horizon,
+                    "metrics": asdict(non_overlap_observable_momentum),
+                }
+                if non_overlap_observable_momentum
+                else None
+            ),
             "nearest_centroid": asdict(non_overlap_nearest) if non_overlap_nearest else None,
             "softmax": asdict(non_overlap_softmax) if non_overlap_softmax else None,
             "decision_policy": asdict(non_overlap_decisions) if non_overlap_decisions else None,
