@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
 from app_opcoes_binarias.config.settings import settings
 from app_opcoes_binarias.data.firebase_store import FirebaseStore
@@ -19,6 +20,7 @@ def main() -> int:
         default="0,0.00001,0.00002,0.00005,0.0001,0.0002",
         help="Comma-separated price-unit tolerances.",
     )
+    parser.add_argument("--output", default="artifacts/label_tolerance_report.json")
     args = parser.parse_args()
 
     if not settings.firebase_database_url:
@@ -37,6 +39,9 @@ def main() -> int:
         "raw_tick_count": len(ticks),
         "reports": [report.__dict__ for report in reports],
     }
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
 
