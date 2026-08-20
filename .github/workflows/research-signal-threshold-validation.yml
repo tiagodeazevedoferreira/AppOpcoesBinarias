@@ -24,7 +24,7 @@ jobs:
           FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
-          python -m app_opcoes_binarias.scripts.evaluate_signal_threshold_gate \
+          python -m app_opcoes_binarias.scripts.evaluate_signal_threshold \
             --symbol frxEURUSD \
             --horizon 60 \
             --lookback 60 \
