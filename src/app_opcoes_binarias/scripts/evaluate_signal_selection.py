@@ -7,6 +7,8 @@ from app_opcoes_binarias.data.firebase_store import FirebaseStore
 from app_opcoes_binarias.data.tick_storage import TickStorage
 from app_opcoes_binarias.research.signal_selection import select_signal
 
+LOOKBACK_MODE = "epoch_seconds_v2"
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Evaluate statistical selection criteria for directional signals.")
@@ -26,6 +28,7 @@ def main() -> int:
         folds=args.folds,
         lookbacks=lookbacks,
     )
+    print(f"lookback_mode | {LOOKBACK_MODE}")
     print("lookback | mean | min | max | folds>=chance | ci95_low | ci95_high | pooled | balanced | target+ | status")
     for item in selections:
         print(
