@@ -46,10 +46,16 @@ class ResearchRow:
             object.__setattr__(self, field, values[field])
 
 
-def build_dataset(ticks: list[dict[str, Any]], horizon_seconds: int = 60) -> list[ResearchRow]:
-    """Build rows using only current/past prices for features and future price for target."""
+def build_dataset(
+    ticks: list[dict[str, Any]],
+    horizon_seconds: int = 60,
+    tolerance: float = 0.0,
+) -> list[ResearchRow]:
+    """Build rows from past/current features and a future direction label."""
     if horizon_seconds <= 0:
         raise ValueError("horizon_seconds must be positive")
+    if tolerance < 0:
+        raise ValueError("tolerance must be non-negative")
     ordered = sorted(ticks, key=lambda tick: int(tick["epoch"]))
     prices = [float(tick["quote"]) for tick in ordered]
     epochs = [int(tick["epoch"]) for tick in ordered]
@@ -69,7 +75,7 @@ def build_dataset(ticks: list[dict[str, Any]], horizon_seconds: int = 60) -> lis
         elif history_length > 10 and ema_value is not None:
             ema_value = alpha * price + (1.0 - alpha) * ema_value
         ema_distance_10 = price / ema_value - 1.0 if ema_value is not None and ema_value != 0 else None
-        outcome = build_outcome(points, i, horizon_seconds)
+        outcome = build_outcome(points, i, horizon_seconds, tolerance=tolerance)
         actual_horizon = outcome.future_epoch - outcome.observation_epoch if outcome.future_epoch is not None else None
         rows.append(ResearchRow(epoch=epoch, quote=price, return_1=return_1, momentum_2=momentum_2, volatility_5=volatility_5, label=outcome.direction, actual_horizon_seconds=actual_horizon, ema_distance_10=ema_distance_10, directional_consistency_5=directional_consistency_5))
     return rows
