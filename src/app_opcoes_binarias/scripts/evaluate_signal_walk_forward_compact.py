@@ -22,6 +22,7 @@ def main() -> int:
     reports = evaluate_signal_walk_forward(
         ticks, horizon_seconds=args.horizon, folds=args.folds, lookbacks=lookbacks
     )
+    print(f"horizon | {args.horizon}")
     print("lookback | folds | accuracies | mean | min | max | folds>=chance")
     for report in reports:
         accuracies = ",".join(f"{fold.accuracy:.4f}" for fold in report.folds)
