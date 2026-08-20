@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 from dataclasses import dataclass
 
 from .signal_diagnostics import evaluate_signal_diagnostics
@@ -35,11 +36,6 @@ def evaluate_signal_walk_forward(
     if not lookbacks or any(value <= 0 for value in lookbacks):
         raise ValueError("lookbacks must be positive and non-empty")
 
-    # Reuse the exact OOS feature/target construction from the diagnostic module.
-    # We derive chronological folds from the same complete sample and score each fold
-    # independently, with no overlap between decision rows.
-    import bisect
-
     ordered = sorted(
         ((int(item["epoch"]), float(item["quote"])) for item in ticks),
         key=lambda item: item[0],
@@ -51,12 +47,13 @@ def evaluate_signal_walk_forward(
     for lookback in lookbacks:
         pairs: list[tuple[int, float, float]] = []
         for i, epoch in enumerate(epochs):
-            if i < lookback:
+            lookback_index = bisect.bisect_right(epochs, epoch - lookback, 0, i + 1) - 1
+            if lookback_index < 0:
                 continue
             future = bisect.bisect_left(epochs, epoch + horizon_seconds, i + 1)
-            if future >= len(epochs) or prices[i] == 0:
+            if future >= len(epochs) or prices[i] == 0 or prices[lookback_index] == 0:
                 continue
-            feature = prices[i] / prices[i - lookback] - 1.0
+            feature = prices[i] / prices[lookback_index] - 1.0
             target = prices[future] / prices[i] - 1.0
             pairs.append((epoch, feature, target))
 
@@ -77,7 +74,11 @@ def evaluate_signal_walk_forward(
             start = fold * fold_size
             end = (fold + 1) * fold_size if fold < folds - 1 else len(selected)
             test = selected[start:end]
-            correct = sum((feature > 0) == (target > 0) for _, feature, target in test if feature != 0 and target != 0)
+            correct = sum(
+                (feature > 0) == (target > 0)
+                for _, feature, target in test
+                if feature != 0 and target != 0
+            )
             usable = sum(feature != 0 and target != 0 for _, feature, target in test)
             accuracy = correct / usable if usable else 0.0
             fold_reports.append(SignalFold(fold + 1, lookback, usable, accuracy))
@@ -94,7 +95,5 @@ def evaluate_signal_walk_forward(
             )
         )
 
-    # Keep imported implementation visibly exercised by CI and ensure no drift in
-    # the feature construction contract when this module changes.
     evaluate_signal_diagnostics(ticks, horizon_seconds=horizon_seconds, lookbacks=lookbacks)
     return tuple(reports)
