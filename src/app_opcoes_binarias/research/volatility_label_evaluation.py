@@ -43,23 +43,27 @@ def _label(delta: float, threshold: float) -> str:
     return "FLAT"
 
 
-def _evaluate_labels(labels: list[str]) -> tuple[float, float, float, float, float]:
-    if not labels:
+def _persistence_shape(
+    train_labels: list[str], test_labels: list[str]
+) -> tuple[float, float, float, float, float]:
+    if not test_labels:
         return 0.0, 0.0, 0.0, 0.0, 0.0
-    counts = Counter(labels)
+    previous = train_labels[-1] if train_labels else None
+    counts = Counter(test_labels)
     correct = Counter()
-    previous = None
-    for label in labels:
-        if previous is not None and previous == label:
+    total_correct = 0
+    for label in test_labels:
+        prediction = previous
+        if prediction == label:
             correct[label] += 1
+            total_correct += 1
         previous = label
-    persistence_correct = sum(correct.values())
     recalls = {
         label: correct[label] / counts[label] if counts[label] else 0.0
         for label in ("RISE", "FALL", "FLAT")
     }
     return (
-        persistence_correct / len(labels),
+        total_correct / len(test_labels),
         sum(recalls.values()) / 3.0,
         recalls["RISE"],
         recalls["FALL"],
@@ -116,8 +120,8 @@ def evaluate_volatility_labels(
         cut = int(len(labels) * train_ratio)
         train_labels = [label for label in labels[:cut] if label is not None]
         test_labels = [label for label in labels[cut:] if label is not None]
-        persistence_accuracy, balanced, rise, fall, flat = _evaluate_labels(
-            [*([train_labels[-1]] if train_labels else []), *test_labels]
+        persistence_accuracy, balanced, rise, fall, flat = _persistence_shape(
+            train_labels, test_labels
         )
 
         selected: list[str] = []
@@ -132,9 +136,7 @@ def evaluate_volatility_labels(
         non_cut = int(len(selected) * train_ratio)
         non_train = selected[:non_cut]
         non_test = selected[non_cut:]
-        non_persistence, non_balanced, _, _, _ = _evaluate_labels(
-            [*([non_train[-1]] if non_train else []), *non_test]
-        )
+        non_persistence, non_balanced, _, _, _ = _persistence_shape(non_train, non_test)
 
         per_multiplier.append(
             VolatilityLabelReport(
