@@ -1,0 +1,37 @@
+name: Research Bar Sizes
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "47 */6 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install project
+        run: python -m pip install --upgrade pip && pip install .
+      - name: Evaluate bar sizes
+        run: >-
+          python -m app_opcoes_binarias.scripts.evaluate_bar_sizes
+          --symbol frxEURUSD
+          --horizon 60
+          --train-ratio 0.7
+          --bar-sizes 1,5,15,30,60
