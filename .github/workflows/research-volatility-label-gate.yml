@@ -1,0 +1,48 @@
+name: Research Volatility Label Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "47 */6 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install project
+        run: python -m pip install --upgrade pip && pip install .
+
+      - name: Evaluate compact volatility label gate
+        run: >-
+          python -m app_opcoes_binarias.scripts.evaluate_volatility_label_gate
+          --symbol frxEURUSD
+          --horizon 60
+          --train-ratio 0.7
+          --volatility-window 60
+          --multipliers 0.5,1,1.5,2,2.5,3
+
+      - name: Upload gate report
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-volatility-label-gate
+          path: artifacts/volatility_label_gate.json
+          if-no-files-found: error
