@@ -76,7 +76,13 @@ def collect_history_backfill(
     cursor: int | str = end
 
     for _ in range(max_batches):
-        batch = collect_history(client, symbol, count=batch_size, end=cursor)
+        batch = collect_history(
+            client,
+            symbol,
+            count=batch_size,
+            start=start,
+            end=cursor,
+        )
         if not batch:
             break
 
@@ -89,9 +95,10 @@ def collect_history_backfill(
         oldest = min(int(tick["epoch"]) for tick in batch)
         if oldest <= start:
             break
+
         next_cursor = oldest - 1
         if isinstance(cursor, int) and next_cursor >= cursor:
-            raise RuntimeError("Historical cursor did not move backwards")
+            break
         cursor = next_cursor
 
     return [collected[epoch] for epoch in sorted(collected)]
