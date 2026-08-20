@@ -5,7 +5,6 @@ payouts. It answers only the research question: did the future price rise,
 fall, or remain unchanged relative to the observation price?
 """
 
-from bisect import bisect_left
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -47,11 +46,17 @@ def find_future_point(
         raise ValueError("horizon_seconds must be positive")
 
     target = points[start_index].epoch + horizon_seconds
-    epochs = [point.epoch for point in points]
-    future_index = bisect_left(epochs, target, lo=start_index + 1)
-    if future_index >= len(points):
+    low = start_index + 1
+    high = len(points)
+    while low < high:
+        middle = (low + high) // 2
+        if points[middle].epoch < target:
+            low = middle + 1
+        else:
+            high = middle
+    if low >= len(points):
         return None
-    return points[future_index]
+    return points[low]
 
 
 def build_outcome(
