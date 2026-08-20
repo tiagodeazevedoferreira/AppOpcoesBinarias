@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 from app_opcoes_binarias.config.settings import settings
@@ -37,7 +38,7 @@ def main() -> int:
         "symbol": args.symbol,
         "horizon_seconds": args.horizon,
         "raw_tick_count": len(ticks),
-        "reports": [report.__dict__ for report in reports],
+        "reports": [asdict(report) for report in reports],
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
