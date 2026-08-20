@@ -4,6 +4,8 @@ on:
   workflow_dispatch: {}
   push:
     branches: [main]
+  schedule:
+    - cron: "15 * * * *"
 
 permissions:
   contents: read
@@ -11,7 +13,7 @@ permissions:
 jobs:
   evaluate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -32,4 +34,12 @@ jobs:
             --symbol frxEURUSD \
             --horizon 60 \
             --train-ratio 0.7 \
-            --walk-forward-folds 5
+            --walk-forward-folds 5 \
+            --output artifacts/model_report.json
+      - name: Upload research report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: corrected-research-report
+          path: artifacts/model_report.json
+          if-no-files-found: ignore
