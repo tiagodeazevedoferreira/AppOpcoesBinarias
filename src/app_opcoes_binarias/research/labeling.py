@@ -5,8 +5,7 @@ payouts. It answers only the research question: did the future price rise,
 fall, or remain unchanged relative to the observation price?
 """
 
-from __future__ import annotations
-
+from bisect import bisect_left
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -28,12 +27,7 @@ class Outcome:
 
 
 def label_direction(start: float, end: float, tolerance: float = 0.0) -> str:
-    """Return RISE, FALL, or FLAT for two prices.
-
-    ``tolerance`` is expressed in price units and is zero by default.  We keep
-    FLAT as a first-class research label rather than silently assigning ties to
-    either direction; the contract-specific treatment will be resolved later.
-    """
+    """Return RISE, FALL, or FLAT for two prices."""
     if end > start + tolerance:
         return "RISE"
     if end < start - tolerance:
@@ -53,10 +47,11 @@ def find_future_point(
         raise ValueError("horizon_seconds must be positive")
 
     target = points[start_index].epoch + horizon_seconds
-    for point in points[start_index + 1 :]:
-        if point.epoch >= target:
-            return point
-    return None
+    epochs = [point.epoch for point in points]
+    future_index = bisect_left(epochs, target, lo=start_index + 1)
+    if future_index >= len(points):
+        return None
+    return points[future_index]
 
 
 def build_outcome(
