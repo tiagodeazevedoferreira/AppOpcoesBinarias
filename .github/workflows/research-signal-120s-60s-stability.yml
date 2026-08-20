@@ -1,0 +1,31 @@
+name: Research Signal 120s-60s Stability
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: python -m pip install -e .
+      - name: Evaluate 120s horizon / 60s lookback stability
+        env:
+          FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          python -m app_opcoes_binarias.scripts.evaluate_signal_walk_forward_compact \
+            --symbol frxEURUSD \
+            --horizon 120 \
+            --folds 20 \
+            --lookbacks 60
