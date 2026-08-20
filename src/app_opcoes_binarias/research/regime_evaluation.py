@@ -40,13 +40,13 @@ def evaluate_regime_persistence(
     for index, row in enumerate(ordered):
         if row.epoch not in test_epochs:
             continue
-        history = ordered[: index + 1]
-        if len(history) < window + 1:
+        if index + 1 < window + 1:
             no_bet += 1
             continue
+        window_rows = ordered[index - window : index + 1]
         regime = label_regime(
-            [item.epoch for item in history],
-            [item.quote for item in history],
+            [item.epoch for item in window_rows],
+            [item.quote for item in window_rows],
             window=window,
         )
         if regime is None:
