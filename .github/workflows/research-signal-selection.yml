@@ -1,0 +1,40 @@
+name: Research Signal Selection
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Evaluate signal selection
+        run: >-
+          python -m app_opcoes_binarias.scripts.evaluate_signal_selection
+          --symbol frxEURUSD
+          --horizon 60
+          --folds 5
+          --lookbacks 1,2,5,10,30,60
