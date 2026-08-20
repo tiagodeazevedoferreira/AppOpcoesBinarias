@@ -1,0 +1,32 @@
+name: Research Signal Threshold
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: python -m pip install -e .
+      - name: Evaluate train-only momentum thresholds
+        env:
+          FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          python -m app_opcoes_binarias.scripts.evaluate_signal_threshold \
+            --symbol frxEURUSD \
+            --horizon 60 \
+            --lookback 60 \
+            --folds 20 \
+            --quantiles 0.50,0.60,0.70,0.80,0.90
