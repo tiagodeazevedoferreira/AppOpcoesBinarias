@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import asdict
 
 from app_opcoes_binarias.config.settings import settings
 from app_opcoes_binarias.data.firebase_store import FirebaseStore
 from app_opcoes_binarias.data.tick_storage import TickStorage
-from app_opcoes_binarias.research.dataset import build_dataset, sample_non_overlapping, temporal_split
+from app_opcoes_binarias.research.dataset import build_dataset, temporal_split
+from app_opcoes_binarias.research.evaluation import sample_non_overlapping
 from app_opcoes_binarias.research.regime_evaluation import evaluate_regime_persistence
 from app_opcoes_binarias.research.regime_walk_forward import evaluate_regime_walk_forward
 from app_opcoes_binarias.research.selection import classify_strategy
@@ -29,19 +31,11 @@ def main() -> int:
     train, test = temporal_split(rows, args.train_ratio)
 
     regime = evaluate_regime_persistence(train, test, window=args.regime_window)
-    regime_walk = evaluate_regime_walk_forward(
-        rows,
-        folds=args.walk_forward_folds,
-        window=args.regime_window,
-    )
+    regime_walk = evaluate_regime_walk_forward(rows, folds=args.walk_forward_folds, window=args.regime_window)
 
     non_overlapping = sample_non_overlapping(rows, args.horizon)
     no_train, no_test = temporal_split(non_overlapping, args.train_ratio)
-    non_overlap_regime = evaluate_regime_persistence(
-        no_train,
-        no_test,
-        window=args.regime_window,
-    ) if no_test else None
+    non_overlap_regime = evaluate_regime_persistence(no_train, no_test, window=args.regime_window) if no_test else None
 
     total_oos_rows = sum(fold.test_rows for fold in regime_walk.folds)
     selection = classify_strategy(
@@ -56,20 +50,15 @@ def main() -> int:
         "horizon_seconds": args.horizon,
         "raw_tick_count": len(ticks),
         "dataset_rows": len(rows),
-        "regime_persistence": regime.__dict__,
-        "regime_walk_forward": {
-            "folds": [fold.__dict__ for fold in regime_walk.folds],
-            "regime_persistence": regime_walk.regime_persistence.__dict__,
-            "directional_decisions": regime_walk.directional_decisions,
-            "no_bet_decisions": regime_walk.no_bet_decisions,
-        },
+        "regime_persistence": asdict(regime),
+        "regime_walk_forward": asdict(regime_walk),
         "non_overlapping": {
             "rows": len(non_overlapping),
             "train_rows": len(no_train),
             "test_rows": len(no_test),
-            "regime_persistence": non_overlap_regime.__dict__ if non_overlap_regime else None,
+            "regime_persistence": asdict(non_overlap_regime) if non_overlap_regime else None,
         },
-        "strategy_selection": selection.__dict__,
+        "strategy_selection": asdict(selection),
     }
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
