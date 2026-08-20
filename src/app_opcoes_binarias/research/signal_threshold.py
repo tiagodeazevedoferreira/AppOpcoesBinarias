@@ -25,7 +25,6 @@ class ThresholdReport:
     total_directional_rows: int
 
 
-
 def evaluate_signal_thresholds(
     ticks: list[dict[str, object]],
     *,
@@ -34,8 +33,8 @@ def evaluate_signal_thresholds(
     folds: int = 20,
     quantiles: tuple[float, ...] = (0.50, 0.60, 0.70, 0.80, 0.90),
 ) -> tuple[ThresholdReport, ...]:
-    if horizon_seconds <= 0 or lookback_seconds <= 0 or lookback_seconds >= horizon_seconds:
-        raise ValueError("lookback_seconds must be positive and less than horizon_seconds")
+    if horizon_seconds <= 0 or lookback_seconds <= 0 or lookback_seconds > horizon_seconds:
+        raise ValueError("lookback_seconds must be positive and at most horizon_seconds")
     if folds < 2:
         raise ValueError("folds must be at least 2")
     if not quantiles or any(value <= 0 or value >= 1 for value in quantiles):
