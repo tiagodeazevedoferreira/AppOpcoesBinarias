@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from app_opcoes_binarias.config.settings import settings
 from app_opcoes_binarias.data.collector import collect_history_backfill
@@ -33,7 +33,7 @@ def main() -> int:
     if not settings.firebase_database_url:
         raise RuntimeError("FIREBASE_DATABASE_URL is required for persistence")
 
-    logging.basicConfig(level=getattr(settings.log_level.upper(), "__missing__", logging.INFO))
+    logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
     store = FirebaseStore(settings.firebase_database_url)
     storage = TickStorage(store)
     existing = storage.read_all(args.symbol)
