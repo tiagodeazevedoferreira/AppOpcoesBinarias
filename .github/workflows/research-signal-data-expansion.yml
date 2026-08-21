@@ -3,7 +3,7 @@ name: Research Signal Data Expansion
 on:
   workflow_dispatch:
   schedule:
-    - cron: "47 2 * * 1"
+    - cron: "47 2 * * *"
 
 permissions:
   contents: read
