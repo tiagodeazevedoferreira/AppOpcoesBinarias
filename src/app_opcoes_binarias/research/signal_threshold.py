@@ -98,7 +98,7 @@ def evaluate_signal_thresholds(
             )
 
         if not fold_reports:
-            reports.append(ThresholdReport(quantile, tuple(), 0.0, 0.0, 0.0, 0.0, 0))
+            reports.append(ThresholdReport(quantile, (), 0.0, 0.0, 0.0, 0.0, 0))
             continue
         accuracies = [item.accuracy for item in fold_reports]
         decision_rates = [item.decision_rate for item in fold_reports]
