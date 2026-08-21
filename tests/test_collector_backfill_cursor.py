@@ -20,7 +20,8 @@ def test_backfill_passes_fixed_start_window_and_stops_at_start_boundary():
         history([90, 91, 92]),
         history([87, 88, 89]),
         history([84, 85, 86]),
-        history([80, 81, 82]),
+        history([81, 82, 83]),
+        history([80]),
     ])
 
     result = collect_history_backfill(
@@ -38,4 +39,5 @@ def test_backfill_passes_fixed_start_window_and_stops_at_start_boundary():
         ("frxEURUSD", 3, 80, 89),
         ("frxEURUSD", 3, 80, 86),
         ("frxEURUSD", 3, 80, 83),
+        ("frxEURUSD", 3, 80, 80),
     ]
