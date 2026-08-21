@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from app_opcoes_binarias.config.settings import settings
 from app_opcoes_binarias.data.collector import collect_history_backfill
@@ -12,6 +13,18 @@ from app_opcoes_binarias.data.quality import assess_ticks
 from app_opcoes_binarias.data.tick_storage import TickStorage
 
 logger = logging.getLogger(__name__)
+
+
+def _expansion_window(existing_ticks: list[dict[str, Any]], hours: float) -> tuple[int, int]:
+    if hours <= 0:
+        raise ValueError("hours must be greater than zero")
+    if not existing_ticks:
+        raise RuntimeError("Cannot expand history backwards without existing persisted ticks")
+
+    oldest_epoch = min(int(tick["epoch"]) for tick in existing_ticks)
+    end_epoch = oldest_epoch - 1
+    start_epoch = int(end_epoch - hours * 3600)
+    return start_epoch, end_epoch
 
 
 def main() -> int:
@@ -24,8 +37,6 @@ def main() -> int:
     parser.add_argument("--max-batches", type=int, default=100)
     args = parser.parse_args()
 
-    if args.hours <= 0:
-        raise ValueError("hours must be greater than zero")
     if args.batch_size < 1:
         raise ValueError("batch-size must be greater than zero")
     if args.max_batches < 1:
@@ -37,12 +48,7 @@ def main() -> int:
     store = FirebaseStore(settings.firebase_database_url)
     storage = TickStorage(store)
     existing = storage.read_all(args.symbol)
-    if not existing:
-        raise RuntimeError("Cannot expand history backwards without existing persisted ticks")
-
-    oldest_epoch = min(int(tick["epoch"]) for tick in existing)
-    end_epoch = oldest_epoch - 1
-    start_epoch = int(end_epoch - args.hours * 3600)
+    start_epoch, end_epoch = _expansion_window(existing, args.hours)
 
     logger.info(
         "Expanding %s backwards from %s to %s",
