@@ -65,7 +65,7 @@ def evaluate_signal_walk_forward(
                 last_epoch = row[0]
 
         if not selected:
-            reports.append(SignalWalkForwardReport(lookback, tuple(), 0.0, 0.0, 0.0, 0))
+            reports.append(SignalWalkForwardReport(lookback, (), 0.0, 0.0, 0.0, 0))
             continue
 
         fold_size = len(selected) // folds
