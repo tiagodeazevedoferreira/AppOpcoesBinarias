@@ -31,9 +31,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install .
 
-      - name: Backfill 24 hours of EUR/USD ticks
+      - name: Expand 24 hours of EUR/USD history backwards
         run: >-
-          python -m app_opcoes_binarias.scripts.collect_and_store
+          python -m app_opcoes_binarias.scripts.expand_historical_data
           --symbol frxEURUSD
           --hours 24
           --batch-size 1000
