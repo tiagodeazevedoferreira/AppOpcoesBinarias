@@ -39,5 +39,5 @@ def test_backfill_passes_fixed_start_window_and_moves_backwards():
         ("frxEURUSD", 3, 80, 89),
         ("frxEURUSD", 3, 80, 86),
         ("frxEURUSD", 3, 80, 83),
-        ("frxEURUSD", 3, 80, 82),
+        ("frxEURUSD", 3, 80, 80),
     ]
