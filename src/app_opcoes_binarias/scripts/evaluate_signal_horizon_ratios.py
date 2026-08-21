@@ -32,7 +32,7 @@ def _evaluate(ticks: list[dict[str, object]], *, horizon: int, lookback: int, fo
             last_epoch = row[0]
 
     if not selected or len(selected) < folds:
-        return 0.0, 0.0, 0.0, 0, tuple()
+        return 0.0, 0.0, 0.0, 0, ()
 
     fold_size = len(selected) // folds
     accuracies: list[float] = []
