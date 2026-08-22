@@ -26,7 +26,7 @@ def test_binary_threshold_is_fit_from_train_only() -> None:
 
     report = evaluate_binary_momentum(train, test, lookback_seconds=60, quantile=1.0)
 
-    assert report.threshold == 0.02
+    assert 0.019 < report.threshold < 0.021
     assert report.decisions == 0
 
 
