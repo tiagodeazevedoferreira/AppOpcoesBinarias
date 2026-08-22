@@ -67,7 +67,10 @@ def evaluate_binary_momentum(
         value = _momentum(row, epochs, quotes, lookback_seconds)
         if value is not None and value != 0.0:
             train_magnitudes.append(abs(value))
-    threshold = _quantile(train_magnitudes, quantile) if train_magnitudes else 0.0
+
+    # q=0 is the explicit "no magnitude gate" research setting. Positive
+    # quantiles freeze a threshold from training data only.
+    threshold = 0.0 if quantile == 0.0 else (_quantile(train_magnitudes, quantile) if train_magnitudes else 0.0)
 
     correct = 0
     decisions = 0
