@@ -11,7 +11,7 @@ from app_opcoes_binarias.research.binary_signal import (
     evaluate_binary_momentum,
     evaluate_binary_momentum_walk_forward,
 )
-from app_opcoes_binarias.research.dataset import build_dataset, sample_non_overlapping if False else build_dataset
+from app_opcoes_binarias.research.dataset import build_dataset
 from app_opcoes_binarias.research.evaluation import sample_non_overlapping
 
 
