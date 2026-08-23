@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import bisect
-import math
-from collections import Counter
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -63,11 +61,12 @@ def _momentum(row: ResearchRow, epochs: list[int], quotes: list[float], lookback
 def _matured_label(
     row: ResearchRow,
     ordered: list[ResearchRow],
+    epochs: list[int],
     horizon: int,
 ) -> tuple[str | None, int]:
     """Return the newest outcome whose full horizon has already elapsed."""
     cutoff = row.epoch - horizon
-    index = bisect.bisect_right([item.epoch for item in ordered], cutoff) - 1
+    index = bisect.bisect_right(epochs, cutoff) - 1
     if index < 0:
         return None, 0
     direction = ordered[index].label if ordered[index].label in DIRECTIONS else None
@@ -98,7 +97,7 @@ def _signal_for_row(
     min_run: int,
     min_momentum: float,
 ) -> RadicalSignal:
-    matured, run = _matured_label(row, ordered, horizon)
+    matured, run = _matured_label(row, ordered, epochs, horizon)
     momenta = tuple(_momentum(row, epochs, quotes, lookback) for lookback in lookbacks)
     signs = tuple(_sign(value) for value in momenta)
 
@@ -111,8 +110,7 @@ def _signal_for_row(
     agreement = max(positive, negative)
     direction = "RISE" if score > 0 else "FALL" if score < 0 else None
 
-    strong = [abs(value) for value in momenta if value is not None]
-    strongest = max(strong, default=0.0)
+    strongest = max((abs(value) for value in momenta if value is not None), default=0.0)
     matured_ok = matured is not None and run >= min_run
     momentum_ok = strongest >= min_momentum
     if direction is None:
@@ -131,7 +129,8 @@ def _signal_for_row(
 
 
 def _evaluate(
-    rows: list[ResearchRow],
+    context: list[ResearchRow],
+    evaluation_rows: list[ResearchRow],
     *,
     horizon: int,
     lookbacks: tuple[int, ...],
@@ -139,11 +138,13 @@ def _evaluate(
     min_run: int,
     min_momentum: float,
 ) -> tuple[int, int, int, list[RadicalSignal]]:
-    ordered = sorted(rows, key=lambda row: row.epoch)
+    context_ordered = sorted(context, key=lambda row: row.epoch)
+    evaluation_ordered = sorted(evaluation_rows, key=lambda row: row.epoch)
+    ordered = sorted(context_ordered + evaluation_ordered, key=lambda row: row.epoch)
     epochs, quotes = _index(ordered)
     signals: list[RadicalSignal] = []
     correct = decisions = errors = 0
-    for row in ordered:
+    for row in evaluation_ordered:
         if row.label not in DIRECTIONS:
             continue
         signal = _signal_for_row(
@@ -171,7 +172,10 @@ def _candidate_grid(train: list[ResearchRow], horizon: int) -> Iterable[dict[str
         thresholds = (0.0,)
     else:
         values = sorted(magnitudes)
-        thresholds = tuple(values[min(len(values) - 1, int(len(values) * q))] for q in (0.0, 0.5, 0.7, 0.85, 0.95, 0.99))
+        thresholds = tuple(
+            values[min(len(values) - 1, int(len(values) * q))]
+            for q in (0.0, 0.5, 0.7, 0.85, 0.95, 0.99)
+        )
     width = len(DEFAULT_LOOKBACKS) + 1
     for min_agreement in range(max(2, width - 2), width + 1):
         for min_run in (1, 2, 3, 5, 10):
@@ -200,27 +204,45 @@ def search_and_evaluate(
     fit = ordered_train[:cut]
     calibration = ordered_train[cut:]
 
-    best: tuple[float, int, float, dict[str, int | float]] | None = None
+    best_rule: dict[str, int | float] | None = None
+    best_rank: tuple[int, float, float, int] | None = None
     for rule in _candidate_grid(fit, horizon):
-        correct, decisions, _, _ = _evaluate(fit, horizon=horizon, lookbacks=DEFAULT_LOOKBACKS, **rule)
+        correct, decisions, _, _ = _evaluate(
+            fit,
+            fit,
+            horizon=horizon,
+            lookbacks=DEFAULT_LOOKBACKS,
+            **rule,
+        )
         if decisions == 0:
             continue
         precision = correct / decisions
         coverage = decisions / max(1, len(fit))
-        rank = (1.0 if precision >= target_precision else 0.0, precision, coverage)
-        if best is None or rank > (best[0], best[1], best[2]):
-            best = (precision, coverage, float(correct), rule)
+        rank = (1 if precision >= target_precision else 0, precision, coverage, decisions)
+        if best_rank is None or rank > best_rank:
+            best_rank = rank
+            best_rule = rule
 
-    if best is None:
-        rule = {"min_agreement": len(DEFAULT_LOOKBACKS) + 1, "min_run": 1, "min_momentum": 0.0}
-    else:
-        rule = best[3]
+    rule = best_rule or {
+        "min_agreement": len(DEFAULT_LOOKBACKS) + 1,
+        "min_run": 1,
+        "min_momentum": 0.0,
+    }
 
     cal_correct, cal_decisions, cal_errors, _ = _evaluate(
-        calibration, horizon=horizon, lookbacks=DEFAULT_LOOKBACKS, **rule
+        fit,
+        calibration,
+        horizon=horizon,
+        lookbacks=DEFAULT_LOOKBACKS,
+        **rule,
     )
+    test_context = fit + calibration
     test_correct, test_decisions, test_errors, _ = _evaluate(
-        test, horizon=horizon, lookbacks=DEFAULT_LOOKBACKS, **rule
+        test_context,
+        test,
+        horizon=horizon,
+        lookbacks=DEFAULT_LOOKBACKS,
+        **rule,
     )
     cal_precision = cal_correct / cal_decisions if cal_decisions else 0.0
     test_precision = test_correct / test_decisions if test_decisions else 0.0
