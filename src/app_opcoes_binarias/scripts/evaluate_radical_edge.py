@@ -9,7 +9,10 @@ from app_opcoes_binarias.config.settings import settings
 from app_opcoes_binarias.data.firebase_store import FirebaseStore
 from app_opcoes_binarias.data.tick_storage import TickStorage
 from app_opcoes_binarias.research.dataset import build_dataset, temporal_split
-from app_opcoes_binarias.research.radical_edge import evaluate_radical, evaluate_radical_walk_forward
+from app_opcoes_binarias.research.radical_edge import (
+    evaluate_radical,
+    evaluate_radical_walk_forward,
+)
 
 
 def _print_summary(report: dict) -> None:
