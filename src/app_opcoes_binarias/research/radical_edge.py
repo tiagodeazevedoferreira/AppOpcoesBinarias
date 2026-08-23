@@ -1,7 +1,7 @@
 """Selective, leakage-safe radical-edge research.
 
 The objective is deliberately different from ordinary classification: do not
-predict every tick.  Execute only when several independent historical views of
+predict every tick. Execute only when several independent historical views of
 the current market state agree and the historical purity is statistically
 strong enough to justify a >99% target.
 """
@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from .dataset import ResearchRow
 
@@ -248,7 +248,8 @@ def predict_radical(
         direction, correct = evidence.best()
         if direction is None:
             continue
-        candidates.append((name, evidence, _wilson_lower(correct, evidence.total)))
+        lower = _wilson_lower(correct, evidence.total)
+        candidates.append((name, evidence, lower))
 
     if not candidates:
         return RadicalPrediction(None, 0.0, 0.0, 0, "insufficient_evidence")
@@ -338,42 +339,39 @@ def evaluate_radical_walk_forward(
     ordered = sorted(rows, key=lambda row: row.epoch)
     if folds < 2:
         raise ValueError("folds must be at least 2")
-    fold_size = len(ordered) // (folds + 1)
-    if fold_size < 1:
+    chunk = len(ordered) // (folds + 1)
+    if chunk == 0:
         raise ValueError("not enough rows for walk-forward evaluation")
 
-    reports: list[RadicalFold] = []
-    correct = decisions = total_rows = 0
-    lower_sum = 0.0
-    max_evidence = 0
-    for fold in range(folds):
-        train_end = fold_size * (fold + 1)
-        test_end = fold_size * (fold + 2) if fold < folds - 1 else len(ordered)
+    fold_results: list[RadicalFold] = []
+    for fold in range(1, folds + 1):
+        train_end = chunk * fold
+        test_end = chunk * (fold + 1) if fold < folds else len(ordered)
+        train = ordered[:train_end]
+        test = ordered[train_end:test_end]
         metrics = evaluate_radical(
-            ordered[:train_end],
-            ordered[train_end:test_end],
+            train,
+            test,
             target_accuracy=target_accuracy,
             min_evidence=min_evidence,
             training_stride=training_stride,
         )
-        reports.append(RadicalFold(train_end, test_end - train_end, metrics))
-        correct += metrics.correct
-        decisions += metrics.total_decisions
-        total_rows += metrics.total_rows
-        lower_sum += metrics.mean_lower_bound * metrics.total_decisions
-        max_evidence = max(max_evidence, metrics.max_evidence)
+        fold_results.append(RadicalFold(len(train), len(test), metrics))
 
-    rate = decisions / total_rows if total_rows else 0.0
+    total_decisions = sum(fold.metrics.total_decisions for fold in fold_results)
+    correct = sum(fold.metrics.correct for fold in fold_results)
+    total_rows = sum(fold.metrics.total_rows for fold in fold_results)
+    lower_weight = sum(fold.metrics.mean_lower_bound * fold.metrics.total_decisions for fold in fold_results)
     aggregate = RadicalMetrics(
-        accuracy=correct / decisions if decisions else 0.0,
+        accuracy=correct / total_decisions if total_decisions else 0.0,
         correct=correct,
-        total_decisions=decisions,
-        decision_rate=rate,
+        total_decisions=total_decisions,
+        decision_rate=total_decisions / total_rows if total_rows else 0.0,
         total_rows=total_rows,
-        no_bet_decisions=max(0, total_rows - decisions),
+        no_bet_decisions=max(0, total_rows - total_decisions),
         target_accuracy=target_accuracy,
-        coverage_at_target=rate,
-        mean_lower_bound=lower_sum / decisions if decisions else 0.0,
-        max_evidence=max_evidence,
+        coverage_at_target=total_decisions / total_rows if total_rows else 0.0,
+        mean_lower_bound=lower_weight / total_decisions if total_decisions else 0.0,
+        max_evidence=max((fold.metrics.max_evidence for fold in fold_results), default=0),
     )
-    return RadicalWalkForward(tuple(reports), aggregate)
+    return RadicalWalkForward(tuple(fold_results), aggregate)
