@@ -1,10 +1,9 @@
 """Selective, leakage-safe radical-edge research.
 
-This module deliberately changes the objective from "predict every tick" to
-"act only when historical evidence makes the next outcome unusually
-predictable". It combines several past-only state representations and uses a
-one-sided Wilson lower confidence bound before allowing a directional
-prediction.
+The objective is deliberately different from ordinary classification: do not
+predict every tick.  Execute only when several independent historical views of
+the current market state agree and the historical purity is statistically
+strong enough to justify a >99% target.
 """
 
 from __future__ import annotations
@@ -71,9 +70,7 @@ class _Evidence:
     def best(self) -> tuple[str | None, int]:
         if self.total == 0:
             return None, 0
-        if self.rise >= self.fall:
-            return "RISE", self.rise
-        return "FALL", self.fall
+        return ("RISE", self.rise) if self.rise >= self.fall else ("FALL", self.fall)
 
 
 class _StateIndex:
@@ -171,7 +168,10 @@ def _keys(prices: Sequence[float], index: int) -> dict[str, tuple[int, ...]]:
             return {}
         changes = [_sign(prices[p] - prices[p - 1]) for p in range(index - window + 1, index + 1)]
         changes = [change for change in changes if change]
-        consistency.append(max(sum(c > 0 for c in changes), sum(c < 0 for c in changes)) / len(changes) if changes else 0.0)
+        consistency.append(
+            max(sum(c > 0 for c in changes), sum(c < 0 for c in changes)) / len(changes)
+            if changes else 0.0
+        )
 
     efficiency = _efficiency(prices, index)
     volatility = _volatility(prices, index)
@@ -214,10 +214,15 @@ def _wilson_lower(correct: int, total: int, z: float = 2.326347874) -> float:
     return max(0.0, (center - spread) / denominator)
 
 
-def fit_radical_index(rows: Sequence[ResearchRow]) -> _StateIndex:
+def fit_radical_index(rows: Sequence[ResearchRow], *, stride: int = 1) -> _StateIndex:
+    """Fit state purity using independent training observations when possible."""
+    if stride < 1:
+        raise ValueError("stride must be positive")
     prices = [row.quote for row in rows]
     index = _StateIndex()
     for position, row in enumerate(rows):
+        if position % stride != 0:
+            continue
         index.add(_keys(prices, position), row.label)
     return index
 
@@ -249,7 +254,13 @@ def predict_radical(
         return RadicalPrediction(None, 0.0, 0.0, 0, "insufficient_evidence")
     strong = [candidate for candidate in candidates if candidate[2] >= target_accuracy]
     if len(strong) < min_agreement:
-        return RadicalPrediction(None, 0.0, max(c[2] for c in candidates), max(c[1].total for c in candidates), "no_consensus")
+        return RadicalPrediction(
+            None,
+            0.0,
+            max(candidate[2] for candidate in candidates),
+            max(candidate[1].total for candidate in candidates),
+            "no_consensus",
+        )
     directions = [candidate[1].best()[0] for candidate in strong]
     if len(set(directions)) != 1:
         return RadicalPrediction(None, 0.0, 0.0, 0, "conflicting_evidence")
@@ -273,19 +284,26 @@ def evaluate_radical(
     *,
     target_accuracy: float = 0.99,
     min_evidence: int = 100,
+    training_stride: int = 60,
 ) -> RadicalMetrics:
     train_rows = sorted(train, key=lambda row: row.epoch)
     test_rows = sorted(test, key=lambda row: row.epoch)
     combined = train_rows + test_rows
     train_count = len(train_rows)
     prices = [row.quote for row in combined]
-    index = fit_radical_index(train_rows)
+    index = fit_radical_index(train_rows, stride=training_stride)
 
     correct = decisions = 0
     lower_sum = 0.0
     max_evidence = 0
     for offset, row in enumerate(test_rows):
-        prediction = predict_radical(index, prices, train_count + offset, target_accuracy=target_accuracy, min_evidence=min_evidence)
+        prediction = predict_radical(
+            index,
+            prices,
+            train_count + offset,
+            target_accuracy=target_accuracy,
+            min_evidence=min_evidence,
+        )
         if prediction.direction is None or row.label not in {"RISE", "FALL"}:
             continue
         decisions += 1
@@ -315,6 +333,7 @@ def evaluate_radical_walk_forward(
     folds: int = 5,
     target_accuracy: float = 0.99,
     min_evidence: int = 100,
+    training_stride: int = 60,
 ) -> RadicalWalkForward:
     ordered = sorted(rows, key=lambda row: row.epoch)
     if folds < 2:
@@ -330,7 +349,13 @@ def evaluate_radical_walk_forward(
     for fold in range(folds):
         train_end = fold_size * (fold + 1)
         test_end = fold_size * (fold + 2) if fold < folds - 1 else len(ordered)
-        metrics = evaluate_radical(ordered[:train_end], ordered[train_end:test_end], target_accuracy=target_accuracy, min_evidence=min_evidence)
+        metrics = evaluate_radical(
+            ordered[:train_end],
+            ordered[train_end:test_end],
+            target_accuracy=target_accuracy,
+            min_evidence=min_evidence,
+            training_stride=training_stride,
+        )
         reports.append(RadicalFold(train_end, test_end - train_end, metrics))
         correct += metrics.correct
         decisions += metrics.total_decisions
