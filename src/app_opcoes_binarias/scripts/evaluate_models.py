@@ -18,6 +18,10 @@ from app_opcoes_binarias.research.model_evaluation import (
     evaluate_softmax,
 )
 from app_opcoes_binarias.research.observable_baselines import evaluate_momentum_baseline
+from app_opcoes_binarias.research.radical_edge import (
+    evaluate_radical,
+    evaluate_radical_walk_forward,
+)
 from app_opcoes_binarias.research.regime_evaluation import evaluate_regime_persistence
 from app_opcoes_binarias.research.regime_walk_forward import evaluate_regime_walk_forward
 from app_opcoes_binarias.research.selection import classify_strategy
@@ -33,6 +37,8 @@ def main() -> int:
     parser.add_argument("--walk-forward-folds", type=int, default=5)
     parser.add_argument("--decision-min-confidence", type=float, default=0.55)
     parser.add_argument("--decision-min-margin", type=float, default=0.10)
+    parser.add_argument("--radical-target-accuracy", type=float, default=0.99)
+    parser.add_argument("--radical-min-evidence", type=int, default=100)
     parser.add_argument("--output", default="artifacts/model_report.json")
     args = parser.parse_args()
 
@@ -53,48 +59,47 @@ def main() -> int:
         min_margin=args.decision_min_margin,
     )
     confidence = evaluate_softmax_confidence(train, test)
-    regime_window = min(args.horizon, 60)
-    regime_persistence = evaluate_regime_persistence(train, test, window=regime_window)
-    regime_walk_forward = evaluate_regime_walk_forward(
+    radical_holdout = evaluate_radical(
+        train,
+        test,
+        target_accuracy=args.radical_target_accuracy,
+        min_evidence=args.radical_min_evidence,
+    )
+    radical_walk_forward = evaluate_radical_walk_forward(
         rows,
         folds=args.walk_forward_folds,
-        window=regime_window,
+        target_accuracy=args.radical_target_accuracy,
+        min_evidence=args.radical_min_evidence,
     )
+    regime_window = min(args.horizon, 60)
+    regime_persistence = evaluate_regime_persistence(train, test, window=regime_window)
+    regime_walk_forward = evaluate_regime_walk_forward(rows, folds=args.walk_forward_folds, window=regime_window)
 
     non_overlapping = sample_non_overlapping(rows, args.horizon)
     non_overlap_train, non_overlap_test = temporal_split(non_overlapping, args.train_ratio)
     non_overlap_baseline_legacy = evaluate_baselines(non_overlap_train, non_overlap_test)
-    non_overlap_observable_momentum = (
-        evaluate_momentum_baseline(non_overlap_train, non_overlap_test, lookback_seconds=args.horizon)
-        if non_overlap_test
-        else None
-    )
+    non_overlap_observable_momentum = evaluate_momentum_baseline(
+        non_overlap_train, non_overlap_test, lookback_seconds=args.horizon
+    ) if non_overlap_test else None
     non_overlap_nearest = evaluate_nearest_centroid(non_overlap_train, non_overlap_test) if non_overlap_test else None
     non_overlap_softmax = evaluate_softmax(non_overlap_train, non_overlap_test) if non_overlap_test else None
-    non_overlap_decisions = (
-        evaluate_softmax_decisions(
-            non_overlap_train,
-            non_overlap_test,
-            min_confidence=args.decision_min_confidence,
-            min_margin=args.decision_min_margin,
-        )
-        if non_overlap_test
-        else None
-    )
-    non_overlap_confidence = (
-        evaluate_softmax_confidence(non_overlap_train, non_overlap_test)
-        if non_overlap_test
-        else None
-    )
-    non_overlap_regime = (
-        evaluate_regime_persistence(
-            non_overlap_train,
-            non_overlap_test,
-            window=regime_window,
-        )
-        if non_overlap_test
-        else None
-    )
+    non_overlap_decisions = evaluate_softmax_decisions(
+        non_overlap_train,
+        non_overlap_test,
+        min_confidence=args.decision_min_confidence,
+        min_margin=args.decision_min_margin,
+    ) if non_overlap_test else None
+    non_overlap_confidence = evaluate_softmax_confidence(non_overlap_train, non_overlap_test) if non_overlap_test else None
+    non_overlap_regime = evaluate_regime_persistence(
+        non_overlap_train, non_overlap_test, window=regime_window
+    ) if non_overlap_test else None
+    non_overlap_radical = evaluate_radical(
+        non_overlap_train,
+        non_overlap_test,
+        target_accuracy=args.radical_target_accuracy,
+        min_evidence=max(20, args.radical_min_evidence // 2),
+    ) if non_overlap_test else None
+
     walk_forward = evaluate_walk_forward(rows, folds=args.walk_forward_folds)
     stability = evaluate_walk_forward_stability(walk_forward)
 
@@ -104,24 +109,27 @@ def main() -> int:
 
     walk_forward_test_rows = sum(fold.test_rows for fold in walk_forward.folds)
     strategy_selection = {
-        "softmax": asdict(
-            classify_strategy(
-                "softmax",
-                walk_forward.softmax.accuracy,
-                walk_forward.softmax.total,
-                walk_forward.softmax.total / walk_forward_test_rows if walk_forward_test_rows else 0.0,
-            )
-        ),
-        "regime_persistence": asdict(
-            classify_strategy(
-                "regime_persistence",
-                regime_walk_forward.regime_persistence.accuracy,
-                regime_walk_forward.directional_decisions,
-                regime_walk_forward.directional_decisions / walk_forward_test_rows
-                if walk_forward_test_rows
-                else 0.0,
-            )
-        ),
+        "softmax": asdict(classify_strategy(
+            "softmax",
+            walk_forward.softmax.accuracy,
+            walk_forward.softmax.total,
+            walk_forward.softmax.total / walk_forward_test_rows if walk_forward_test_rows else 0.0,
+        )),
+        "regime_persistence": asdict(classify_strategy(
+            "regime_persistence",
+            regime_walk_forward.regime_persistence.accuracy,
+            regime_walk_forward.directional_decisions,
+            regime_walk_forward.directional_decisions / walk_forward_test_rows if walk_forward_test_rows else 0.0,
+        )),
+        "radical_selective": asdict(classify_strategy(
+            "radical_selective",
+            radical_walk_forward.aggregate.accuracy,
+            radical_walk_forward.aggregate.total_decisions,
+            radical_walk_forward.aggregate.decision_rate,
+            minimum_accuracy=args.radical_target_accuracy,
+            minimum_decisions=30,
+            minimum_rate=0.0001,
+        )),
     }
 
     payload = {
@@ -133,10 +141,7 @@ def main() -> int:
         "train_rows": len(train),
         "test_rows": len(test),
         "baseline_legacy": asdict(baseline_legacy),
-        "baseline_observable_momentum": {
-            "lookback_seconds": args.horizon,
-            "metrics": asdict(observable_momentum),
-        },
+        "baseline_observable_momentum": {"lookback_seconds": args.horizon, "metrics": asdict(observable_momentum)},
         "nearest_centroid": asdict(nearest_centroid),
         "softmax": asdict(softmax),
         "decision_policy": {
@@ -145,6 +150,12 @@ def main() -> int:
             "softmax": asdict(decisions),
         },
         "confidence": asdict(confidence),
+        "radical_selective": {
+            "target_accuracy": args.radical_target_accuracy,
+            "min_evidence": args.radical_min_evidence,
+            "holdout": asdict(radical_holdout),
+            "walk_forward": asdict(radical_walk_forward),
+        },
         "horizon_comparison": [asdict(report) for report in horizon_reports],
         "regime_persistence": asdict(regime_persistence),
         "regime_walk_forward": asdict(regime_walk_forward),
@@ -155,18 +166,15 @@ def main() -> int:
             "test_rows": len(non_overlap_test),
             "baseline_legacy": asdict(non_overlap_baseline_legacy),
             "baseline_observable_momentum": (
-                {
-                    "lookback_seconds": args.horizon,
-                    "metrics": asdict(non_overlap_observable_momentum),
-                }
-                if non_overlap_observable_momentum
-                else None
+                {"lookback_seconds": args.horizon, "metrics": asdict(non_overlap_observable_momentum)}
+                if non_overlap_observable_momentum else None
             ),
             "nearest_centroid": asdict(non_overlap_nearest) if non_overlap_nearest else None,
             "softmax": asdict(non_overlap_softmax) if non_overlap_softmax else None,
             "decision_policy": asdict(non_overlap_decisions) if non_overlap_decisions else None,
             "confidence": asdict(non_overlap_confidence) if non_overlap_confidence else None,
             "regime_persistence": asdict(non_overlap_regime) if non_overlap_regime else None,
+            "radical_selective": asdict(non_overlap_radical) if non_overlap_radical else None,
         },
         "walk_forward": asdict(walk_forward),
         "walk_forward_stability": asdict(stability),

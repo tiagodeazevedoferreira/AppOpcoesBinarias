@@ -1,22 +1,17 @@
 """Selective, leakage-safe radical-edge research.
 
-This module deliberately changes the objective from "predict every tick" to
-"act only when historical evidence makes the next outcome unusually
-predictable".  It combines several past-only state representations and uses a
-one-sided Wilson lower confidence bound before allowing a directional
-prediction.
-
-The model never reads a future quote while constructing a state.  Labels are
-used only to build the training lookup tables, and test labels are touched
-only after a decision has been made.
+The objective is deliberately different from ordinary classification: do not
+predict every tick. Execute only when several independent historical views of
+the current market state agree and the historical purity is statistically
+strong enough to justify a >99% target.
 """
 
 from __future__ import annotations
 
 import math
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Iterable, Sequence
 
 from .dataset import ResearchRow
 
@@ -75,9 +70,7 @@ class _Evidence:
     def best(self) -> tuple[str | None, int]:
         if self.total == 0:
             return None, 0
-        if self.rise >= self.fall:
-            return "RISE", self.rise
-        return "FALL", self.fall
+        return ("RISE", self.rise) if self.rise >= self.fall else ("FALL", self.fall)
 
 
 class _StateIndex:
@@ -98,29 +91,25 @@ class _StateIndex:
         return self._tables[name].get(key)
 
 
-def _sign(value: float, epsilon: float = 0.0) -> int:
-    if value > epsilon:
+def _sign(value: float) -> int:
+    if value > 0:
         return 1
-    if value < -epsilon:
+    if value < 0:
         return -1
     return 0
 
 
-def _quantile_bucket(value: float, cuts: Sequence[float]) -> int:
+def _bucket(value: float, cuts: Sequence[float]) -> int:
     for index, cut in enumerate(cuts):
         if value <= cut:
             return index
     return len(cuts)
 
 
-def _history(prices: Sequence[float], index: int, lag: int) -> float | None:
-    if index < lag:
+def _return(prices: Sequence[float], index: int, lag: int) -> float | None:
+    if index < lag or prices[index - lag] == 0:
         return None
-    previous = prices[index - lag]
-    current = prices[index]
-    if previous == 0:
-        return None
-    return current / previous - 1.0
+    return prices[index] / prices[index - lag] - 1.0
 
 
 def _run_length(prices: Sequence[float], index: int, maximum: int = 60) -> int:
@@ -131,10 +120,7 @@ def _run_length(prices: Sequence[float], index: int, maximum: int = 60) -> int:
         return 0
     length = 0
     for position in range(index, max(0, index - maximum), -1):
-        if position < 1:
-            break
-        direction = _sign(prices[position] - prices[position - 1])
-        if direction != last:
+        if position < 1 or _sign(prices[position] - prices[position - 1]) != last:
             break
         length += 1
     return length
@@ -146,84 +132,78 @@ def _efficiency(prices: Sequence[float], index: int, window: int = 60) -> float 
     start = index - window
     displacement = abs(prices[index] - prices[start])
     path = sum(abs(prices[p] - prices[p - 1]) for p in range(start + 1, index + 1))
-    if path == 0:
-        return 0.0
-    return displacement / path
+    return displacement / path if path else 0.0
 
 
 def _volatility(prices: Sequence[float], index: int, window: int = 30) -> float | None:
     if index < window:
         return None
-    values = []
-    for p in range(index - window + 1, index + 1):
-        if p < 1 or prices[p - 1] == 0:
-            continue
-        values.append(prices[p] / prices[p - 1] - 1.0)
+    values = [
+        prices[p] / prices[p - 1] - 1.0
+        for p in range(index - window + 1, index + 1)
+        if p >= 1 and prices[p - 1] != 0
+    ]
     if len(values) < 2:
         return None
     mean = sum(values) / len(values)
-    return math.sqrt(sum((x - mean) ** 2 for x in values) / len(values))
+    return math.sqrt(sum((value - mean) ** 2 for value in values) / len(values))
 
 
-def _motif_code(prices: Sequence[float], index: int, window: int = 12) -> tuple[int, ...] | None:
+def _motif(prices: Sequence[float], index: int, window: int = 12) -> tuple[int, ...] | None:
     if index < window:
         return None
     return tuple(_sign(prices[p] - prices[p - 1]) + 1 for p in range(index - window + 1, index + 1))
 
 
 def _keys(prices: Sequence[float], index: int) -> dict[str, tuple[int, ...]]:
-    r15 = _history(prices, index, 15)
-    r30 = _history(prices, index, 30)
-    r60 = _history(prices, index, 60)
-    if r15 is None or r30 is None or r60 is None:
+    values = [_return(prices, index, lag) for lag in (15, 30, 60)]
+    if any(value is None for value in values):
         return {}
-
+    r15, r30, r60 = values
     signs = (_sign(r15), _sign(r30), _sign(r60))
-    consistency_values = []
+
+    consistency = []
     for window in (15, 30, 60):
         if index < window:
             return {}
-        non_flat = [
-            _sign(prices[p] - prices[p - 1])
-            for p in range(index - window + 1, index + 1)
-            if prices[p] != prices[p - 1]
-        ]
-        if not non_flat:
-            consistency_values.append(0.0)
-        else:
-            consistency_values.append(max(sum(x > 0 for x in non_flat), sum(x < 0 for x in non_flat)) / len(non_flat))
+        changes = [_sign(prices[p] - prices[p - 1]) for p in range(index - window + 1, index + 1)]
+        changes = [change for change in changes if change]
+        consistency.append(
+            max(sum(c > 0 for c in changes), sum(c < 0 for c in changes)) / len(changes)
+            if changes else 0.0
+        )
 
-    efficiency = _efficiency(prices, index, 60)
-    volatility = _volatility(prices, index, 30)
-    run = _run_length(prices, index)
+    efficiency = _efficiency(prices, index)
+    volatility = _volatility(prices, index)
     if efficiency is None or volatility is None:
         return {}
+    run = _run_length(prices, index)
+    agreement = sum(value == signs[-1] for value in signs)
 
-    agreement = sum(1 for value in signs if value == signs[-1])
     state = (
         *signs,
-        _quantile_bucket(consistency_values[2], (0.55, 0.65, 0.75, 0.85, 0.95)),
-        _quantile_bucket(efficiency, (0.10, 0.20, 0.35, 0.50, 0.70, 0.85)),
+        _bucket(consistency[2], (0.55, 0.65, 0.75, 0.85, 0.95)),
+        _bucket(efficiency, (0.10, 0.20, 0.35, 0.50, 0.70, 0.85)),
         min(run // 3, 8),
         agreement,
-        _quantile_bucket(math.log10(max(volatility, 1e-12)), (-5.0, -4.5, -4.0, -3.5, -3.0, -2.5)),
+        _bucket(math.log10(max(volatility, 1e-12)), (-5.0, -4.5, -4.0, -3.5, -3.0, -2.5)),
     )
     trend = (
         signs[-1],
-        _quantile_bucket(consistency_values[2], (0.60, 0.70, 0.80, 0.90, 0.96)),
-        _quantile_bucket(efficiency, (0.15, 0.30, 0.50, 0.70, 0.85)),
+        _bucket(consistency[2], (0.60, 0.70, 0.80, 0.90, 0.96)),
+        _bucket(efficiency, (0.15, 0.30, 0.50, 0.70, 0.85)),
         min(run // 5, 6),
         agreement,
     )
     keys: dict[str, tuple[int, ...]] = {"state": state, "trend": trend}
-    motif = _motif_code(prices, index, 12)
+    motif = _motif(prices, index)
     if motif is not None:
         keys["motif"] = motif
     return keys
 
 
 def _wilson_lower(correct: int, total: int, z: float = 2.326347874) -> float:
-    """One-sided Wilson lower bound (99% confidence by default)."""
+    """One-sided 99% Wilson lower confidence bound."""
     if total <= 0:
         return 0.0
     p = correct / total
@@ -234,15 +214,16 @@ def _wilson_lower(correct: int, total: int, z: float = 2.326347874) -> float:
     return max(0.0, (center - spread) / denominator)
 
 
-def fit_radical_index(rows: Sequence[ResearchRow]) -> _StateIndex:
-    """Fit lookup evidence using only past-state keys and known training labels."""
+def fit_radical_index(rows: Sequence[ResearchRow], *, stride: int = 1) -> _StateIndex:
+    """Fit state purity using independent training observations when possible."""
+    if stride < 1:
+        raise ValueError("stride must be positive")
     prices = [row.quote for row in rows]
     index = _StateIndex()
     for position, row in enumerate(rows):
-        if row.label is None:
+        if position % stride != 0:
             continue
-        keys = _keys(prices, position)
-        index.add(keys, row.label)
+        index.add(_keys(prices, position), row.label)
     return index
 
 
@@ -255,7 +236,6 @@ def predict_radical(
     min_evidence: int = 100,
     min_agreement: int = 2,
 ) -> RadicalPrediction:
-    """Predict only when independent historical state views support the same edge."""
     keys = _keys(prices, position)
     if not keys:
         return RadicalPrediction(None, 0.0, 0.0, 0, "insufficient_history")
@@ -269,25 +249,34 @@ def predict_radical(
         if direction is None:
             continue
         lower = _wilson_lower(correct, evidence.total)
-        confidence = correct / evidence.total
         candidates.append((name, evidence, lower))
 
     if not candidates:
         return RadicalPrediction(None, 0.0, 0.0, 0, "insufficient_evidence")
-
     strong = [candidate for candidate in candidates if candidate[2] >= target_accuracy]
     if len(strong) < min_agreement:
-        return RadicalPrediction(None, 0.0, max(candidate[2] for candidate in candidates), max(candidate[1].total for candidate in candidates), "no_consensus")
-
+        return RadicalPrediction(
+            None,
+            0.0,
+            max(candidate[2] for candidate in candidates),
+            max(candidate[1].total for candidate in candidates),
+            "no_consensus",
+        )
     directions = [candidate[1].best()[0] for candidate in strong]
     if len(set(directions)) != 1:
         return RadicalPrediction(None, 0.0, 0.0, 0, "conflicting_evidence")
 
     strong.sort(key=lambda item: (item[2], item[1].total), reverse=True)
     direction, evidence_total = strong[0][1].best()
-    weighted_confidence = sum(candidate[1].best()[1] for candidate in strong) / sum(candidate[1].total for candidate in strong)
-    lower = min(candidate[2] for candidate in strong)
-    return RadicalPrediction(direction, weighted_confidence, lower, evidence_total, "+".join(candidate[0] for candidate in strong))
+    total_evidence = sum(candidate[1].total for candidate in strong)
+    weighted_confidence = sum(candidate[1].best()[1] for candidate in strong) / total_evidence
+    return RadicalPrediction(
+        direction,
+        weighted_confidence,
+        min(candidate[2] for candidate in strong),
+        evidence_total,
+        "+".join(candidate[0] for candidate in strong),
+    )
 
 
 def evaluate_radical(
@@ -296,22 +285,26 @@ def evaluate_radical(
     *,
     target_accuracy: float = 0.99,
     min_evidence: int = 100,
+    training_stride: int = 60,
 ) -> RadicalMetrics:
-    """Evaluate the selective model strictly out of sample."""
     train_rows = sorted(train, key=lambda row: row.epoch)
     test_rows = sorted(test, key=lambda row: row.epoch)
-    combined = list(train_rows) + list(test_rows)
+    combined = train_rows + test_rows
     train_count = len(train_rows)
     prices = [row.quote for row in combined]
-    index = fit_radical_index(train_rows)
+    index = fit_radical_index(train_rows, stride=training_stride)
 
-    correct = 0
-    decisions = 0
+    correct = decisions = 0
     lower_sum = 0.0
     max_evidence = 0
     for offset, row in enumerate(test_rows):
-        position = train_count + offset
-        prediction = predict_radical(index, prices, position, target_accuracy=target_accuracy, min_evidence=min_evidence)
+        prediction = predict_radical(
+            index,
+            prices,
+            train_count + offset,
+            target_accuracy=target_accuracy,
+            min_evidence=min_evidence,
+        )
         if prediction.direction is None or row.label not in {"RISE", "FALL"}:
             continue
         decisions += 1
@@ -319,17 +312,17 @@ def evaluate_radical(
         lower_sum += prediction.lower_bound
         max_evidence = max(max_evidence, prediction.evidence)
 
-    total_rows = sum(1 for row in test_rows if row.label in {"RISE", "FALL"})
-    accuracy = correct / decisions if decisions else 0.0
+    total_rows = sum(row.label in {"RISE", "FALL"} for row in test_rows)
+    rate = decisions / total_rows if total_rows else 0.0
     return RadicalMetrics(
-        accuracy=accuracy,
+        accuracy=correct / decisions if decisions else 0.0,
         correct=correct,
         total_decisions=decisions,
-        decision_rate=decisions / total_rows if total_rows else 0.0,
+        decision_rate=rate,
         total_rows=total_rows,
         no_bet_decisions=max(0, total_rows - decisions),
         target_accuracy=target_accuracy,
-        coverage_at_target=decisions / total_rows if total_rows else 0.0,
+        coverage_at_target=rate,
         mean_lower_bound=lower_sum / decisions if decisions else 0.0,
         max_evidence=max_evidence,
     )
@@ -341,42 +334,44 @@ def evaluate_radical_walk_forward(
     folds: int = 5,
     target_accuracy: float = 0.99,
     min_evidence: int = 100,
+    training_stride: int = 60,
 ) -> RadicalWalkForward:
-    """Walk forward without ever training on future labels."""
     ordered = sorted(rows, key=lambda row: row.epoch)
     if folds < 2:
         raise ValueError("folds must be at least 2")
-    if len(ordered) < folds + 1:
+    chunk = len(ordered) // (folds + 1)
+    if chunk == 0:
         raise ValueError("not enough rows for walk-forward evaluation")
 
-    fold_size = len(ordered) // (folds + 1)
-    fold_reports: list[RadicalFold] = []
-    correct = decisions = total_rows = 0
-    lower_sum = 0.0
-    max_evidence = 0
-    for fold in range(folds):
-        train_end = fold_size * (fold + 1)
-        test_end = fold_size * (fold + 2) if fold < folds - 1 else len(ordered)
+    fold_results: list[RadicalFold] = []
+    for fold in range(1, folds + 1):
+        train_end = chunk * fold
+        test_end = chunk * (fold + 1) if fold < folds else len(ordered)
         train = ordered[:train_end]
         test = ordered[train_end:test_end]
-        metrics = evaluate_radical(train, test, target_accuracy=target_accuracy, min_evidence=min_evidence)
-        fold_reports.append(RadicalFold(len(train), len(test), metrics))
-        correct += metrics.correct
-        decisions += metrics.total_decisions
-        total_rows += metrics.total_rows
-        lower_sum += metrics.mean_lower_bound * metrics.total_decisions
-        max_evidence = max(max_evidence, metrics.max_evidence)
+        metrics = evaluate_radical(
+            train,
+            test,
+            target_accuracy=target_accuracy,
+            min_evidence=min_evidence,
+            training_stride=training_stride,
+        )
+        fold_results.append(RadicalFold(len(train), len(test), metrics))
 
+    total_decisions = sum(fold.metrics.total_decisions for fold in fold_results)
+    correct = sum(fold.metrics.correct for fold in fold_results)
+    total_rows = sum(fold.metrics.total_rows for fold in fold_results)
+    lower_weight = sum(fold.metrics.mean_lower_bound * fold.metrics.total_decisions for fold in fold_results)
     aggregate = RadicalMetrics(
-        accuracy=correct / decisions if decisions else 0.0,
+        accuracy=correct / total_decisions if total_decisions else 0.0,
         correct=correct,
-        total_decisions=decisions,
-        decision_rate=decisions / total_rows if total_rows else 0.0,
+        total_decisions=total_decisions,
+        decision_rate=total_decisions / total_rows if total_rows else 0.0,
         total_rows=total_rows,
-        no_bet_decisions=max(0, total_rows - decisions),
+        no_bet_decisions=max(0, total_rows - total_decisions),
         target_accuracy=target_accuracy,
-        coverage_at_target=decisions / total_rows if total_rows else 0.0,
-        mean_lower_bound=lower_sum / decisions if decisions else 0.0,
-        max_evidence=max_evidence,
+        coverage_at_target=total_decisions / total_rows if total_rows else 0.0,
+        mean_lower_bound=lower_weight / total_decisions if total_decisions else 0.0,
+        max_evidence=max((fold.metrics.max_evidence for fold in fold_results), default=0),
     )
-    return RadicalWalkForward(tuple(fold_reports), aggregate)
+    return RadicalWalkForward(tuple(fold_results), aggregate)
