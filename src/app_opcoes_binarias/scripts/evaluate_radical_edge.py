@@ -13,20 +13,14 @@ from app_opcoes_binarias.research.radical_edge import evaluate_radical, evaluate
 
 
 def _print_summary(report: dict) -> None:
-    aggregate = report["walk_forward"]["aggregate"]
     print("\n=== RADICAL SELECTIVE EDGE ===")
-    print(f"target_accuracy      : {aggregate['target_accuracy']:.4f}")
-    print(f"walk-forward accuracy: {aggregate['accuracy']:.4f}")
-    print(f"decisions            : {aggregate['total_decisions']}")
-    print(f"decision rate        : {aggregate['decision_rate']:.6f}")
-    print(f"coverage             : {aggregate['coverage_at_target']:.6f}")
-    print(f"mean lower bound     : {aggregate['mean_lower_bound']:.4f}")
-    for index, fold in enumerate(report["walk_forward"]["folds"], start=1):
-        metrics = fold["metrics"]
+    for target, metrics in report["targets"].items():
+        aggregate = metrics["walk_forward"]["aggregate"]
         print(
-            f"fold {index}: accuracy={metrics['accuracy']:.4f} "
-            f"decisions={metrics['total_decisions']} "
-            f"rate={metrics['decision_rate']:.6f}"
+            f"target={target} accuracy={aggregate['accuracy']:.4f} "
+            f"decisions={aggregate['total_decisions']} "
+            f"rate={aggregate['decision_rate']:.6f} "
+            f"lower={aggregate['mean_lower_bound']:.4f}"
         )
 
 
@@ -54,18 +48,25 @@ def main() -> int:
     rows = build_dataset(ticks, horizon_seconds=args.horizon)
     train, test = temporal_split(rows, args.train_ratio)
 
-    holdout = evaluate_radical(
-        train,
-        test,
-        target_accuracy=args.target_accuracy,
-        min_evidence=args.min_evidence,
-    )
-    walk_forward = evaluate_radical_walk_forward(
-        rows,
-        folds=args.folds,
-        target_accuracy=args.target_accuracy,
-        min_evidence=args.min_evidence,
-    )
+    targets = sorted({args.target_accuracy, 0.99, 0.995, 0.999})
+    target_reports: dict[str, dict] = {}
+    for target in targets:
+        holdout = evaluate_radical(
+            train,
+            test,
+            target_accuracy=target,
+            min_evidence=args.min_evidence,
+        )
+        walk_forward = evaluate_radical_walk_forward(
+            rows,
+            folds=args.folds,
+            target_accuracy=target,
+            min_evidence=args.min_evidence,
+        )
+        target_reports[f"{target:.3f}"] = {
+            "holdout": asdict(holdout),
+            "walk_forward": asdict(walk_forward),
+        }
 
     non_overlapping = rows[:: max(1, args.horizon)]
     no_train, no_test = temporal_split(non_overlapping, args.train_ratio)
@@ -84,14 +85,15 @@ def main() -> int:
         "dataset_rows": len(rows),
         "target_accuracy": args.target_accuracy,
         "min_evidence": args.min_evidence,
-        "holdout": asdict(holdout),
-        "walk_forward": asdict(walk_forward),
+        "targets": target_reports,
         "non_overlapping": asdict(non_overlapping_report),
         "interpretation": {
             "objective": "maximize precision of executed decisions while abstaining elsewhere",
             "promotion_rule": "only promote when every walk-forward fold has observed accuracy at or above target",
             "statistical_gate": "one-sided 99% Wilson lower bound on historical state purity",
             "coverage_is_secondary": True,
+            "novelty": "multi-view state consensus: coarse regime + trend state + exact short motif",
+            "anti_leakage": "training tables contain only labels from rows at or before each training fold boundary",
         },
     }
 
