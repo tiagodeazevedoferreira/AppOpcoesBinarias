@@ -13,9 +13,15 @@ from app_opcoes_binarias.research.dataset import build_dataset, temporal_split
 from app_opcoes_binarias.research.decision_evaluation import evaluate_softmax_decisions
 from app_opcoes_binarias.research.evaluation import evaluate_baselines, sample_non_overlapping
 from app_opcoes_binarias.research.horizon_evaluation import evaluate_horizons
-from app_opcoes_binarias.research.model_evaluation import evaluate_nearest_centroid, evaluate_softmax
+from app_opcoes_binarias.research.model_evaluation import (
+    evaluate_nearest_centroid,
+    evaluate_softmax,
+)
 from app_opcoes_binarias.research.observable_baselines import evaluate_momentum_baseline
-from app_opcoes_binarias.research.radical_edge import evaluate_radical, evaluate_radical_walk_forward
+from app_opcoes_binarias.research.radical_edge import (
+    evaluate_radical,
+    evaluate_radical_walk_forward,
+)
 from app_opcoes_binarias.research.regime_evaluation import evaluate_regime_persistence
 from app_opcoes_binarias.research.regime_walk_forward import evaluate_regime_walk_forward
 from app_opcoes_binarias.research.selection import classify_strategy
