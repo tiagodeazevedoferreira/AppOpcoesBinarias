@@ -3,7 +3,7 @@ name: Research Radical 99 Edge
 on:
   workflow_dispatch: {}
   push:
-    branches: [research/radical-99]
+    branches: [main, research/radical-99]
 
 permissions:
   contents: read
