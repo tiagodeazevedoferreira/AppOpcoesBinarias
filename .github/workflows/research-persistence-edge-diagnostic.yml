@@ -1,0 +1,40 @@
+name: Research Persistence Edge Diagnostic
+
+on:
+  push:
+    branches: [main, research/radical-99]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: python -m pip install -e .[dev]
+      - name: Unit tests
+        run: python -m pytest -q
+      - name: Diagnose observable persistence edge
+        env:
+          FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          python -m app_opcoes_binarias.scripts.diagnose_persistence_edge \
+            --symbol frxEURUSD \
+            --horizons 60,120,300 \
+            --train-ratio 0.70 \
+            --min-evidence 20 \
+            --top-n 30 \
+            --output artifacts/persistence_edge_diagnostic.json
+      - name: Upload diagnostic artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: persistence-edge-diagnostic
+          path: artifacts/persistence_edge_diagnostic.json
