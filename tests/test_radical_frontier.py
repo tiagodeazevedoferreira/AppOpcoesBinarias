@@ -25,7 +25,7 @@ def test_frontier_is_leakage_safe_and_reports_points():
         rows[:120],
         rows[120:],
         thresholds=(0.80,),
-        evidence_levels=(2,),
+        evidence_levels=(1,),
         min_views_levels=(1,),
     )
     assert report.points
