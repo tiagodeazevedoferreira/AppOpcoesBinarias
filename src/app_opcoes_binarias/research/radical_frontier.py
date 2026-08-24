@@ -11,8 +11,8 @@ whether the representation contains a useful high-precision subpopulation.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
-from typing import Iterable
 
 from .dataset import ResearchRow
 from .radical_edge import _StateIndex, _keys, _wilson_lower, fit_radical_index
@@ -55,9 +55,7 @@ def _evaluate_selection(
     index: _StateIndex = fit_radical_index(train, stride=60)
 
     view_names = ("state", "trend", "motif")
-    stats: dict[str, list[int]] = {
-        view: [0, 0, 0] for view in view_names
-    }
+    stats: dict[str, list[int]] = {view: [0, 0, 0] for view in view_names}
     combined = [0, 0, 0, 0]
     max_evidence = {view: 0 for view in view_names}
 
@@ -81,7 +79,14 @@ def _evaluate_selection(
             if lower >= threshold:
                 candidates.append((view, direction, evidence.total, lower))
 
-        selected = candidates if min_views == 1 else [c for c in candidates if sum(c[1] == x[1] for x in candidates) >= min_views]
+        if min_views == 1:
+            selected = candidates
+        else:
+            selected = [
+                candidate
+                for candidate in candidates
+                if sum(candidate[1] == other[1] for other in candidates) >= min_views
+            ]
         if not selected:
             continue
 
@@ -93,7 +98,7 @@ def _evaluate_selection(
         combined[1] += int(direction == row.label)
         combined[2] = max(combined[2], max(candidate[2] for candidate in selected))
         combined[3] += min(candidate[3] for candidate in selected)
-        for view, candidate_direction, evidence_total, lower in selected:
+        for view, candidate_direction, evidence_total, _ in selected:
             if candidate_direction != direction:
                 continue
             stats[view][0] += 1
@@ -119,7 +124,7 @@ def _evaluate_selection(
             )
         )
 
-    decisions, correct, max_ev, lower_sum = combined
+    decisions, correct, max_ev, _ = combined
     points.append(
         FrontierPoint(
             view="consensus",
